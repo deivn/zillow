@@ -7,6 +7,7 @@ import scrapy
 import time
 import redis
 import json
+import datetime
 from decimal import Decimal
 from zillow.items import ZillowItem
 
@@ -33,10 +34,11 @@ class ZillowSpider(RedisSpider):
     #     domain = kwargs.pop('domain', '')
     #     self.allowed_domains = filter(None, domain.split(','))
     #     super(ZillowSpider, self).__init__(*args, **kwargs),
+    re_queue = redis.Redis(host='47.106.140.94', port='6486')
     detail_queue = redis.Redis(host='47.106.140.94', port='6486', db=2, decode_responses=True)
+    count = 0
 
     def parse(self, response):
-        time.sleep(3)
         result = self.detail_queue.spop("content")
         if result:
             detail = json.loads(result)
@@ -48,7 +50,7 @@ class ZillowSpider(RedisSpider):
                 detail["state"] = detail["detail"]["state"]
             url = detail["url"] if "url" in detail.keys() else detail["detail_url"]
             detail['zpid'] = detail["zpid"] if "zpid" in detail.keys() else self.get_zpid(url)
-            print("正在爬取的url: %s" % url)
+            print("正在爬取的url: %s, info: %s" % (url, result))
             yield scrapy.Request(url, callback=self.parse_item, meta={"detail": detail})
 
     def parse_item(self, response):
@@ -64,7 +66,8 @@ class ZillowSpider(RedisSpider):
         item["living_sqft"] = detail["livingArea"] if "livingArea" in detail.keys() else self.get_livingsqft(response)
         item["comments"] = self.get_desc(response).replace("\n", "")
         item["agent"] = self.get_agent(response)
-        item["house_type"] = self.get_info_by_keyword(response, 'Type:')
+        house_type = self.get_info_by_keyword(response, 'Type:')
+        item["house_type"] = house_type if house_type else response.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()').extract()[0]
         item["heating"] = self.get_heating(response)
         item["cooling"] = self.get_cooling(response)
         item["price_sqft"] = self.get_pricesqft(response)
@@ -72,6 +75,8 @@ class ZillowSpider(RedisSpider):
         year_build = detail["yearBuilt"] if "yearBuilt" in detail.keys() else self.get_info_by_keyword(response, 'Year built:')
         if not year_build:
             year_build = self.get_yearbuild(response, 'Year built')
+            if not year_build:
+                year_build = response.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Year Built")]/following-sibling::div/text()').extract()
         item["year_build"] = year_build
         item["parking"] = self.get_parking(response)
         item["lot_sqft"] = detail["lotSize"] if "lotSize" in detail.keys() else self.get_lotsqft(response)
@@ -87,6 +92,9 @@ class ZillowSpider(RedisSpider):
         item["longitude"] = detail["longitude"]
         item["city"] = detail["city"]
         item["state"] = detail["state"]
+        self.count += 1
+        print("开始入队列，爬取详情页-------第%d次" % self.count)
+        self.re_queue.lpush("zillowspider:start_urls","https://www.zillow.com/homedetails/Los-Arboles-Ave-NW-Albuquerque-NM-87107/2091166132_zpid/")
         yield item
 
 
@@ -116,6 +124,11 @@ class ZillowSpider(RedisSpider):
             unit = lot_unit[0].replace(" ", "")
             if unit == 'acres':
                lot = str(Decimal(lot) * Decimal(43560))
+        if not lot:
+            lot_tmp = source.xpath('//div[contains(text(),"Lot")]/following-sibling::div/text()').extract()
+            if lot_tmp:
+                lot_a = lot_tmp[0].split(" ")
+                lot = lot_a[0]
         return lot
 
     def get_yearbuild(self, source, keyword):
@@ -128,10 +141,18 @@ class ZillowSpider(RedisSpider):
 
     def get_heating(self, source):
         heating = source.xpath('//ul[@class="ds-home-fact-list"]/li[3]/span[2]/text()').extract()# 暖气
+        if not heating:
+            heating = source.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Heating")]/following-sibling::div/text()').extract()
+            if not heating:
+                heating = source.xpath('//li[@class="ds-home-fact-list-item"]//span[contains(text(), "Heating")]/following-sibling::span/text()').extract()
         return heating[0].replace(" ", "") if heating else ""
 
     def get_cooling(self, source):
         cooling = source.xpath('//ul[@class="ds-home-fact-list"]/li[4]/span[2]/text()').extract()# 冷气
+        if not cooling:
+            cooling = source.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Cooling")]/following-sibling::div/text()').extract()
+            if not cooling:
+                    cooling = source.xpath('//li[@class="ds-home-fact-list-item"]//span[contains(text(), "Cooling")]/following-sibling::span/text()').extract()
         return cooling[0] if cooling else ""
 
     def get_agent(self, source):
@@ -165,6 +186,8 @@ class ZillowSpider(RedisSpider):
                 d = c.groups()[0]
                 if d.isdigit():
                     _street = d + b.split(d)[1]
+        if not _street:
+            _street = "".join(source.xpath('//header[@class="zsg-content-item"]/h1/div/text()').extract())
         return _street
 
     def get_bathroom(self, response):
@@ -193,6 +216,8 @@ class ZillowSpider(RedisSpider):
             price_result = source.xpath('//h3[@class="ds-price"]/span/span[contains(text(), "$")]/text()').extract()
             if price_result:
                 r = price_result[0].replace(" ", "").replace(" ", "")
+        if not r:
+            r = ''.join(source.xpath('//section[@class="zsg-content-item"]//span[contains(text(), "$")]/text()').extract())
         return r
 
     def get_contactname(self, response):
@@ -205,6 +230,11 @@ class ZillowSpider(RedisSpider):
             contact_phone = response.xpath('//ul[@class="ds-listing-agent-info"]/li[2]/text()').extract()
             if not contact_phone:
                 contact_phone = response.xpath('//div[@class="cf-cnt-rpt-sig-info"]/span[@data-test-id="cf-contact-phone-number"]/text()').extract()
+                if not contact_phone:
+                    phone = response.xpath('//div[@class="ov-seller-lead-agent-phone-info"]/text()').extract()
+                    if phone:
+                        _phone = re.match(r'.+call\s(\d+-\d+-\d+).+', phone[0])
+                        contact_phone = [_phone]
         return contact_phone[0] if contact_phone else ""
 
 
@@ -214,6 +244,8 @@ class ZillowSpider(RedisSpider):
 
     def get_desc(self, response):
         desc = response.xpath('//div[@class="ds-overview-section"]/div[1]/div[1]/text()').extract()
+        if not desc:
+            desc = response.xpath('//div[@id="home-description-container"]/div/div/div[1]/text()').extract()
         return desc[0] if desc else ""
 
     def get_garage(self, response, keyword):
@@ -225,6 +257,8 @@ class ZillowSpider(RedisSpider):
 
     def get_apn(self, response):
         apn_result = response.xpath('//td[text() = "Parcel number"]/following-sibling::td/span/text()').extract()
+        if not apn_result:
+            apn_result = response.xpath('//div[contains(text(),"Parcel")]/following-sibling::div/text()').extract()
         return apn_result[0].replace(" ", "") if apn_result else ""
 
 
@@ -235,18 +269,26 @@ class ZillowSpider(RedisSpider):
 
     def get_hoafee(self, response):
         hoafee = response.xpath('//td[text() = "Has HOA fee"]/following-sibling::td/span/text()').extract()
+        if not hoafee:
+            hoafee = response.xpath('//div[contains(text(),"HOA Fee")]/following-sibling::div/text()').extract()
         return hoafee[0] if hoafee else ""
 
 
     def get_info_by_keyword(self, response, keyword):
         result = response.xpath('//ul[@class="ds-home-fact-list"]/li[@class="ds-home-fact-list-item"]//span[text()="'+keyword+'"]/following-sibling::span/text()').extract()
+        if not result:
+            result = response.xpath('//li[@class="ds-home-fact-list-item"]//span[contains(text(), "'+keyword+'")]/following-sibling::span/text()').extract()
         return result[0] if result else ''
 
     def get_parking(self, response):
         parking = response.xpath('//ul[@class="ds-home-fact-list"]/li[5]/span[2]/text()').extract()
         if not parking:
-            parking = response.xpath('//li[@class="ds-home-fact-list-item"]//span[contains(text(), "Parking:")]/following-sibling::span/text()').extract()
-        return parking[0] if parking else ""
+            parking = response.xpath('//li[@class="ds-home-fact-list-item"]//span[contains(text(), "Parking")]/following-sibling::span/text()').extract()
+            if not parking:
+                parking = response.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Parking")]/following-sibling::div/text()').extract()
+                if not parking:
+                    parking = response.xpath('//div[contains(text(),"Parking")]/following-sibling::div/text()').extract()
+        return parking[0].replace('\n', "").replace("\xa0", "") if parking else ""
 
     def get_zpid(self, url):
         _zpid = re.match(r'^https://www.zillow.com/homedetails/(\d+)_zpid', url)
