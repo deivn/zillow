@@ -131,6 +131,8 @@ class DataOpt(object):
 
     def get_dealtype(self, source):
         deal_type = source.xpath('//div[@class="ds-chip-removable-content"]//span[@class="ds-status-details"]/text()')
+        if deal_type:
+            deal_type = source.xpath('//span[@class="ds-status-details"]/text()')
         return deal_type[0] if deal_type else ""
 
     def get_imgurl(self, source):

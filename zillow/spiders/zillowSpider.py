@@ -150,6 +150,8 @@ class ZillowSpider(RedisSpider):
 
     def get_dealtype(self, source):
         deal_type = source.xpath('//div[@class="ds-chip-removable-content"]//span[@class="ds-status-details"]/text()').extract()
+        if deal_type:
+            deal_type = source.xpath('//span[@class="ds-status-details"]/text()').extract()
         return deal_type[0] if deal_type else ""
 
     def get_street(self, source):
