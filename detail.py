@@ -240,9 +240,11 @@ class DataOpt(object):
             url = detail["detail_url"]
             browser.get(url)
             html = browser.page_source
-            if '无法访问此网站' in html or 'robots' in html or '未连接到互联网' in html:
+            if 'robots' in html or '未连接到互联网' in html:
                 time.sleep(60)
                 raise Exception("robots")
+            elif '404' in html:
+                raise Exception("lost")
             wait = WebDriverWait(browser, 20)
             wait.until(EC.presence_of_element_located((By.XPATH, '//ul[@class="media-stream"]/li/picture')))
             source = etree.HTML(html)
@@ -259,7 +261,7 @@ class DataOpt(object):
             # house_type = self.get_info_by_keyword(source, 'Type:')
             house_type = self.get_info_by_keyword(source, 'Type:')
             _housetype = house_type if house_type else source.xpath( '//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()')
-            house_type = detail["homeStatus"] if "homeStatus" in detail.keys() else _housetype
+            house_type = detail["homeType"] if "homeType" in detail.keys() else _housetype
             heating = self.get_heating(source)
             cooling = self.get_cooling(source)
             price_sqft = self.get_pricesqft(source)
