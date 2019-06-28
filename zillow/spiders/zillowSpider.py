@@ -66,15 +66,20 @@ class ZillowSpider(RedisSpider):
         item["living_sqft"] = detail["livingArea"] if "livingArea" in detail.keys() else self.get_livingsqft(response)
         item["comments"] = self.get_desc(response).replace("\n", "")
         item["agent"] = self.get_agent(response)
-        house_type = self.get_info_by_keyword(response, 'Type:')
-        item["house_type"] = house_type if house_type else response.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()').extract()[0]
+        _housetype = ""
+        try:
+            house_type = self.get_info_by_keyword(response, 'Type:')
+            _housetype = house_type if house_type else response.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()').extract()[0]
+        except Exception as e:
+            self.parse(response)
+        item["house_type"] = detail["homeStatus"] if "homeStatus" in detail.keys() else _housetype
         item["heating"] = self.get_heating(response)
         item["cooling"] = self.get_cooling(response)
         item["price_sqft"] = self.get_pricesqft(response)
         # Year built
-        year_build = detail["yearBuilt"] if "yearBuilt" in detail.keys() else self.get_info_by_keyword(response, 'Year built:')
-        if not year_build:
-            year_build = self.get_yearbuild(response, 'Year built')
+        year_build = str(detail["yearBuilt"]) if "yearBuilt" in detail.keys() else self.get_info_by_keyword(response, 'Year built:')
+        if not year_build or year_build == "-1":
+            year_build = self.get_yearbuild(response)
             if not year_build:
                 year_build = response.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Year Built")]/following-sibling::div/text()').extract()
         item["year_build"] = year_build
@@ -94,7 +99,7 @@ class ZillowSpider(RedisSpider):
         item["state"] = detail["state"]
         self.count += 1
         print("开始入队列，爬取详情页-------第%d次" % self.count)
-        self.re_queue.lpush("zillowspider:start_urls","https://www.zillow.com/homedetails/Los-Arboles-Ave-NW-Albuquerque-NM-87107/2091166132_zpid/")
+        self.re_queue.lpush("zillowspider:start_urls","https://www.zillow.com/homedetails/3676-Sesto-Ct-Las-Vegas-NV-89141/53377895_zpid/")
         yield item
 
 
@@ -131,8 +136,8 @@ class ZillowSpider(RedisSpider):
                 lot = lot_a[0]
         return lot
 
-    def get_yearbuild(self, source, keyword):
-        yearbuild = source.xpath('//li[@class="ds-sub-section-container"]//td[contains(text(), "'+keyword+'")]/following-sibling::td/span/text()').extract()
+    def get_yearbuild(self, source):
+        yearbuild = source.xpath('//li[@class="ds-sub-section-container"]//td[contains(text(), "Year built")]/following-sibling::td/span/text()').extract()
         return yearbuild[0].replace(" ", "") if yearbuild else ""
 
     def get_pricesqft(self, source):
@@ -222,7 +227,10 @@ class ZillowSpider(RedisSpider):
 
     def get_contactname(self, response):
         agent_name = response.xpath('//ul[@class="ds-listing-agent-info"]/li[1]/span/text()').extract()
-        return agent_name[0] if agent_name else ""
+        _name = agent_name[0] if agent_name else ""
+        if _name and _name == 'Name undisclosed':
+            _name = ""
+        return _name
 
     def get_contactphone(self, response):
         contact_phone = response.xpath('//ul[@class="ds-listing-agent-info"]/li[3]/text()').extract()

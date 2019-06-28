@@ -34,6 +34,9 @@ from twisted.web.client import ResponseFailed
 from scrapy.core.downloader.handlers.http11 import TunnelError
 from scrapy.utils.response import response_status_message
 from scrapy.http import TextResponse
+import redis
+import json
+
 
 class RandomUserAgent(object):
     def __init__(self, agents):
@@ -173,7 +176,14 @@ class ProcessAllExceptionMiddleware(RetryMiddleware):
         if response.status == 307 or response.status == 301:
             self.exist_proxy()
             response = TextResponse(url=request.url, status=200, request=request, body=self.get_page_resource(request))
-            # response['info'] = self.get_page_resource(request)
+        if response.status == 404:
+            time.sleep(5)
+            detail_queue = redis.Redis(host='47.106.140.94', port='6486', db=2, decode_responses=True)
+            result = detail_queue.spop("content")
+            if result:
+                detail = json.loads(result)
+                url = detail["url"] if "url" in detail.keys() else detail["detail_url"]
+                response = TextResponse(url=url, status=200, request=request,body=self.get_page_resource(request))
         return response
 
     def exist_proxy(self):
@@ -240,7 +250,7 @@ class ProcessAllExceptionMiddleware(RetryMiddleware):
             info = result.read().decode(encoding='utf-8')
             if info:
                 print("当前IP代理为:%s" % info)
-                self.proxy = {"ip_port": info, "user_pass": ""}
+                self.proxy = {"ip_port": info, "user_pass": "wh429004:ylsvtvu1"}
         except Exception as e:
             print("exception info: %s" % e)
         return self.proxy

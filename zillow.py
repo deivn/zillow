@@ -79,12 +79,14 @@ if __name__ == '__main__':
                         if "hdpData" in item.keys():
                             try:
                                 homeInfo = item["hdpData"]["homeInfo"]
+                                address = homeInfo["streetAddress"] + "," + homeInfo["city"] + "," + homeInfo["state"] + " " + homeInfo["zipcode"]
+                                _address = address.replace('#', '').replace(' ', '-').replace(',', '-')
                                 detail = {
                                     "zpid": homeInfo["zpid"],
                                     "city": homeInfo["city"],
                                     "state": homeInfo["state"],
                                     "zipcode": homeInfo["zipcode"],
-                                    "streetAddress": (homeInfo["streetAddress"] + "," + homeInfo["city"] + "," + homeInfo["state"] + " " + homeInfo["zipcode"]),
+                                    "streetAddress": address,
                                     "latitude": homeInfo["latitude"],
                                     "longitude": homeInfo["longitude"],
                                     "price": homeInfo["price"] if "price" in homeInfo.keys() else "0",
@@ -96,7 +98,9 @@ if __name__ == '__main__':
                                     "homeType": homeInfo["homeType"] if "homeType" in homeInfo.keys() else "",
                                     "homeStatus": homeInfo["homeStatus"] if "homeStatus" in homeInfo.keys() else "",
                                     "taxAssessedValue": homeInfo["taxAssessedValue"] if "taxAssessedValue" in homeInfo.keys() else "",
-                                    "detail_url": 'https://www.zillow.com/homedetails/' + str(homeInfo["zpid"]) + '_zpid'
+                                    "detail_url": 'https://www.zillow.com/homedetails/' + _address + '/'+str(homeInfo["zpid"]) + '_zpid/',
+                                    "contactPhone": homeInfo["contactPhone"] if "contactPhone" in homeInfo.keys() else "",
+                                    "timeOnZillow": homeInfo["timeOnZillow"] if "timeOnZillow" in homeInfo.keys() else 0
                                 }
                                 # https://www.zillow.com/homedetails/2610-Dana-Kristine-Ln-Reno-NV-89503/2132063529_zpid/
                                 content = json.dumps(detail, ensure_ascii=False)
