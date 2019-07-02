@@ -42,7 +42,7 @@ class Redis2Mysql(object):
             self.housetypes.append(df_line)
 
     def get_houseid(self, street):
-        return "ebh-" + street.replace("#", "").replace(" ", "-").replace(",", "-").lower()
+        return "ebh-" + street.replace("# ", "").replace(" ", "-").replace(",", "-").lower()
 
     def get_cid(self, state, city):
         if self.city_list:
@@ -122,13 +122,14 @@ def main():
         contact_phone = _item['contact_phone'] if _item['contact_phone'] else ""
         house_type_id = redis2mysql.get_housetypeid(_item['house_type'])
         lot_sqft = _item['lot_sqft'] if _item['lot_sqft'] and _item['lot_sqft'] != -1.0 else 0
-        # 按图片，手机号,房源类型,占地面积过滤
-        if imgs and contact_phone and house_type_id and lot_sqft:
+        city_id = redis2mysql.get_cid(_item['state'], _item['city'])
+        # 按图片，手机号,房源类型,占地面积, 城市过滤
+        if imgs and contact_phone and house_type_id and lot_sqft and city_id:
             # 使用execute方法执行SQL INSERT语
             item['house_id'] = redis2mysql.get_houseid(_item['street'])
             item['user_id'] = '84737239254302720'
             item['state_id'] = _item['state']
-            item['city_id'] = redis2mysql.get_cid(_item['state'], _item['city'])
+            item['city_id'] = city_id
             item['house_type_id'] = house_type_id
             item['price'] = _item['price']
             item['hoa_fee'] = _item['hoa_fee'] if _item['hoa_fee'] and _item['hoa_fee'] != 'No' else "0"

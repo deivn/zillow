@@ -80,7 +80,7 @@ if __name__ == '__main__':
                             try:
                                 homeInfo = item["hdpData"]["homeInfo"]
                                 address = homeInfo["streetAddress"] + "," + homeInfo["city"] + "," + homeInfo["state"] + " " + homeInfo["zipcode"]
-                                _address = address.replace('#', '').replace(' ', '-').replace(',', '-')
+                                _address = address.replace('# ', '').replace(' ', '-').replace(',', '-')
                                 detail = {
                                     "zpid": homeInfo["zpid"],
                                     "city": homeInfo["city"],
