@@ -1,92 +1,29 @@
 #! /usr/bin/env python  
 # -*- coding:utf-8 -*-
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 import time
 from lxml import etree
 import json
 import requests
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from selenium.webdriver.support.ui import WebDriverWait
-import random
 import codecs
-# import pandas as pd
 import redis
 import re
 from decimal import Decimal
 from data import Data
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
-# with open('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb') as sc:
-#     text = sc.read().decode('utf-8')
+import threading
+from queue import Queue
 
 
-class DataOpt(object):
-    USER_AGENTS = [
-        "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Win64; x64; Trident/5.0; .NET CLR 3.5.30729; .NET CLR 3.0."
-        "30729; .NET CLR 2.0.50727; Media Center PC 6.0)",
-        "Mozilla/5.0 (compatible; MSIE 8.0; Windows NT 6.0; Trident/4.0; WOW64; Trident/4.0; SLCC2; .NET CLR 2.0.50727"
-        "; .NET CLR 3.5.30729; .NET CLR 3.0.30729; .NET CLR 1.0.3705; .NET CLR 1.1.4322)",
-        "Mozilla/4.0 (compatible; MSIE 7.0b; Windows NT 5.2; .NET CLR 1.1.4322; .NET CLR 2.0.50727; InfoPath.2; .NET"
-        " CLR 3.0.04506.30)",
-        "Mozilla/5.0 (Windows; U; Windows NT 5.1; zh-CN) AppleWebKit/523.15 (KHTML, like Gecko, Safari/419.3) Arora"
-        "/0.3 (Change: 287 c9dfb30)",
-        "Mozilla/5.0 (X11; U; Linux; en-US) AppleWebKit/527+ (KHTML, like Gecko, Safari/419.3) Arora/0.6",
-        "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.2pre) Gecko/20070215 K-Ninja/2.1.1",
-        "Mozilla/5.0 (Windows; U; Windows NT 5.1; zh-CN; rv:1.9) Gecko/20080705 Firefox/3.0 Kapiko/3.0",
-        "Mozilla/5.0 (X11; Linux i686; U;) Gecko/20070322 Kazehakase/0.4.5"
-    ]
+class PageDeal(threading.Thread):
+    def __init__(self, detail, que, re_queue):
+        self.detail = detail
+        self.que = que
+        self.re_queue = re_queue
 
-    headers = {'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/web'
-                         'p,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
-               'accept-encoding': 'gzip, deflate, br',
-               'accept-language': 'zh-CN,zh;q=0.9',
-               'cache-control': 'max-age=0',
-               'upgrade-insecure-requests': '1',
-               'user-agent': random.choice(USER_AGENTS)}
-
-    def __init__(self, filname, mode, host, port, db):
-        # self.ip = requests.get('https://dps.kdlapi.com/api/getdps/?orderid=916161680251769&num=1&area=%E5%B9%BF%E4%B8%9C%2C%E7%A6%8F%E5%BB%BA%2C%E6%B5%99%E6%B1%9F%2C%E6%B1%9F%E8%A5%BF%2C%E5%8C%97%E4%BA%AC%2C%E6%B9%96%E5%8D%97%2C%E9%A6%99%E6%B8%AF%2C%E4%BA%91%E5%8D%97%2C%E5%A4%A9%E6%B4%A5&pt=1&dedup=1&sep=1&signature=hlmmo7aeico6vfnt0fzrljg84txca7zw').text
-        self.driver_url = codecs.open(filname, mode, encoding="utf-8").read()
-        self.re_queue = redis.Redis(host=host, port=port)
-        self.detail_queue = redis.Redis(host=host, port=port, db=db, decode_responses=True)
-
-    def get_ip(self):
-        if self.re_queue.scard("proxy_ip") < 3:
-            _ip = requests.get('https://dps.kdlapi.com/api/getdps/?orderid=916161680251769&num=1&area=%E5%B9%BF%E4%B8%9C%2C%E7%A6%8F%E5%BB%BA%2C%E6%B5%99%E6%B1%9F%2C%E6%B1%9F%E8%A5%BF%2C%E5%8C%97%E4%BA%AC%2C%E6%B9%96%E5%8D%97%2C%E9%A6%99%E6%B8%AF%2C%E4%BA%91%E5%8D%97%2C%E5%A4%A9%E6%B4%A5&pt=1&dedup=1&sep=1&signature=hlmmo7aeico6vfnt0fzrljg84txca7zw').text
-            self.re_queue.sadd("proxy_ip", _ip)
-            self.ip = _ip
-        else:
-            # 返回1个随机数
-            self.ip = self.re_queue.srandmember("proxy_ip", 1)[0].decode()
-
-    def star_chr(self):
-        # self.get_ip()
-        chrome_options = webdriver.ChromeOptions()
-        # print("当前IP是: %s" % self.ip)
-        # proxy = "--proxy-server=http://" + self.ip
-        # chrome_options.add_argument(proxy)
-        chrome_options.add_argument('--ignore-certificate-errors')
-        chrome_options.add_argument('--disable-gpu')
-        # prefs = {"profile.managed_default_content_settings.images": 2}
-        # chrome_options.add_experimental_option("prefs", prefs)
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        time.sleep(5)
-        browser = webdriver.Chrome(executable_path=self.driver_url, chrome_options=chrome_options)
-        return browser
-
-    def open_zil(self, url):
-        self.star_chr.get(url)  # 打开网页
-        time.sleep(1)
-        html = self.star_chr.page_source
-        if '无法访问此网站' in html or 'robot' in html or '未连接到互联网' in html:
-            time.sleep(10)
-        else:
-            json_list = etree.HTML(self.star_chr.page_source).xpath('//pre/text()')
-            if json_list:
-                return "".join(json_list)
-        return ""
+    def run(self):
+        self.data_page()
 
     def get_info_by_keyword(self, source, keyword):
         result = source.xpath('//ul[@class="ds-home-fact-list"]/li[@class="ds-home-fact-list-item"]//span[text()="'+keyword+'"]/following-sibling::span/text()')
@@ -234,43 +171,37 @@ class DataOpt(object):
                             contact_phone = [_phone]
         return contact_phone[0] if contact_phone else ""
 
-    def data_page(self, detail, origin):
-        browser = self.star_chr()
-        try:
-            url = detail["detail_url"]
-            browser.get(url)
-            html = browser.page_source
-            if '无法访问此网站' in html or 'robots' in html or '未连接到互联网' in html:
-                time.sleep(80)
-                raise Exception("robots")
-            # wait = WebDriverWait(browser, 60)
-            # wait.until(EC.presence_of_element_located((By.XPATH, '//ul[@class="media-stream"]/li/picture')))
+    def data_page(self):
+        # wait = WebDriverWait(browser, 60)
+        # wait.until(EC.presence_of_element_located((By.XPATH, '//ul[@class="media-stream"]/li/picture')))
+        with self.que.not_empty:
+            html = self.que.get()
             source = etree.HTML(html)
-            print("url--------"+url)
-            price = detail["price"] if "price" in detail.keys() else self.get_price(source)
-            bedroom = detail["bedrooms"] if "bedrooms" in detail.keys() else self.get_bedroom(source)
-            bathroom = detail["bathrooms"] if "bathrooms" in detail.keys() else self.get_bathroom(source)
-            street = detail["streetAddress"] if "streetAddress" in detail.keys() else self.get_street(source)
+            print("url------------%s" % self.detail['url'])
+            price = self.detail["price"] if "price" in self.detail.keys() else self.get_price(source)
+            bedroom = self.detail["bedrooms"] if "bedrooms" in self.detail.keys() else self.get_bedroom(source)
+            bathroom = self.detail["bathrooms"] if "bathrooms" in self.detail.keys() else self.get_bathroom(source)
+            street = self.detail["streetAddress"] if "streetAddress" in self.detail.keys() else self.get_street(source)
             deal_type = self.get_dealtype(source)
             img_url = self.get_imgurl(source)
-            living_sqft = detail["livingArea"] if "livingArea" in detail.keys() else self.get_livingsqft(source)
+            living_sqft = self.detail["livingArea"] if "livingArea" in self.detail.keys() else self.get_livingsqft(source)
             comments = self.get_desc(source).replace("\n", "")
             agent = self.get_agent(source)
             # house_type = self.get_info_by_keyword(source, 'Type:')
             house_type = self.get_info_by_keyword(source, 'Type:')
             _housetype = house_type if house_type else source.xpath( '//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()')
-            house_type = detail["homeType"] if "homeType" in detail.keys() else _housetype
+            house_type = self.detail["homeType"] if "homeType" in self.detail.keys() else _housetype
             heating = self.get_heating(source)
             cooling = self.get_cooling(source)
             price_sqft = self.get_pricesqft(source)
             # Year built
-            year_build = str(detail["yearBuilt"]) if "yearBuilt" in detail.keys() else self.get_info_by_keyword(source, 'Year built:')
+            year_build = str(self.detail["yearBuilt"]) if "yearBuilt" in self.detail.keys() else self.get_info_by_keyword(source, 'Year built:')
             if not year_build or year_build == "-1":
                 year_build = self.get_yearbuild(source)
                 if not year_build:
                     year_build = source.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Year Built")]/following-sibling::div/text()')
             parking = self.get_parking(source)
-            lot_sqft = detail["lotSize"] if "lotSize" in detail.keys() else self.get_lotsqft(source)
+            lot_sqft = self.detail["lotSize"] if "lotSize" in self.detail.keys() else self.get_lotsqft(source)
             hoa_fee = self.get_hoafee(source)
             mls = self.get_mls(source)
             apn = self.get_apn(source)
@@ -281,60 +212,139 @@ class DataOpt(object):
             contact_name = self.get_contactname(source)
             data = Data(price, bedroom, bathroom, street, deal_type, img_url, living_sqft,
                         comments, agent, house_type, heating, cooling, price_sqft, year_build,
-                        parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", url, mls, apn, garage, deposit, detail["zipcode"], detail["latitude"], detail["longitude"], detail["city"], detail["state"])
+                        parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", self.detail['url'], mls, apn, garage, deposit, self.detail["zipcode"], self.detail["latitude"], self.detail["longitude"], self.detail["city"], self.detail["state"])
             self.re_queue.sadd("data", data.dict2str())
-            time.sleep(2)
-			
-            # to_mysql.to_sql(product)
-        except Exception as e:
-            info = e.args[0]
-            if info == 'robots':
-                self.detail_queue.sadd("content", origin)
-            # if self.re_queue.sismember("proxy_ip", self.ip):
-            #     # 删除当前对应的无效IP
-            #     self.re_queue.srem("proxy_ip", self.ip)
-            # self.get_ip()
-        finally:
-            browser.quit()
-        return "OK"
+
+
+class DataOpt(object):
+    USER_AGENTS = [
+        "Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; Win64; x64; Trident/5.0; .NET CLR 3.5.30729; .NET CLR 3.0."
+        "30729; .NET CLR 2.0.50727; Media Center PC 6.0)",
+        "Mozilla/5.0 (compatible; MSIE 8.0; Windows NT 6.0; Trident/4.0; WOW64; Trident/4.0; SLCC2; .NET CLR 2.0.50727"
+        "; .NET CLR 3.5.30729; .NET CLR 3.0.30729; .NET CLR 1.0.3705; .NET CLR 1.1.4322)",
+        "Mozilla/4.0 (compatible; MSIE 7.0b; Windows NT 5.2; .NET CLR 1.1.4322; .NET CLR 2.0.50727; InfoPath.2; .NET"
+        " CLR 3.0.04506.30)",
+        "Mozilla/5.0 (Windows; U; Windows NT 5.1; zh-CN) AppleWebKit/523.15 (KHTML, like Gecko, Safari/419.3) Arora"
+        "/0.3 (Change: 287 c9dfb30)",
+        "Mozilla/5.0 (X11; U; Linux; en-US) AppleWebKit/527+ (KHTML, like Gecko, Safari/419.3) Arora/0.6",
+        "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.2pre) Gecko/20070215 K-Ninja/2.1.1",
+        "Mozilla/5.0 (Windows; U; Windows NT 5.1; zh-CN; rv:1.9) Gecko/20080705 Firefox/3.0 Kapiko/3.0",
+        "Mozilla/5.0 (X11; Linux i686; U;) Gecko/20070322 Kazehakase/0.4.5"
+    ]
+
+    headers = {'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/web'
+                         'p,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
+               'accept-encoding': 'gzip, deflate, br',
+               'accept-language': 'zh-CN,zh;q=0.9',
+               'cache-control': 'max-age=0',
+               'upgrade-insecure-requests': '1',
+               'user-agent': random.choice(USER_AGENTS)}
+
+    def __init__(self, filname, mode, host, port, db):
+        # self.ip = requests.get('https://dps.kdlapi.com/api/getdps/?orderid=916161680251769&num=1&area=%E5%B9%BF%E4%B8%9C%2C%E7%A6%8F%E5%BB%BA%2C%E6%B5%99%E6%B1%9F%2C%E6%B1%9F%E8%A5%BF%2C%E5%8C%97%E4%BA%AC%2C%E6%B9%96%E5%8D%97%2C%E9%A6%99%E6%B8%AF%2C%E4%BA%91%E5%8D%97%2C%E5%A4%A9%E6%B4%A5&pt=1&dedup=1&sep=1&signature=hlmmo7aeico6vfnt0fzrljg84txca7zw').text
+        self.driver_url = codecs.open(filname, mode, encoding="utf-8").read()
+        self.re_queue = redis.Redis(host=host, port=port)
+        self.detail_queue = redis.Redis(host=host, port=port, db=db, decode_responses=True)
+        self.robots_flag = False
+
+    def get_ip(self):
+        if self.re_queue.scard("proxy_ip") < 3:
+            _ip = requests.get('https://dps.kdlapi.com/api/getdps/?orderid=916161680251769&num=1&area=%E5%B9%BF%E4%B8%9C%2C%E7%A6%8F%E5%BB%BA%2C%E6%B5%99%E6%B1%9F%2C%E6%B1%9F%E8%A5%BF%2C%E5%8C%97%E4%BA%AC%2C%E6%B9%96%E5%8D%97%2C%E9%A6%99%E6%B8%AF%2C%E4%BA%91%E5%8D%97%2C%E5%A4%A9%E6%B4%A5&pt=1&dedup=1&sep=1&signature=hlmmo7aeico6vfnt0fzrljg84txca7zw').text
+            self.re_queue.sadd("proxy_ip", _ip)
+            self.ip = _ip
+        else:
+            # 返回1个随机数
+            self.ip = self.re_queue.srandmember("proxy_ip", 1)[0].decode()
+
+    def star_chr(self):
+        chrome_options = webdriver.ChromeOptions()
+        chrome_options.add_argument('--ignore-certificate-errors')
+        chrome_options.add_argument('--disable-gpu')
+        # prefs = {"profile.managed_default_content_settings.images": 2}
+        # chrome_options.add_experimental_option("prefs", prefs)
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+        time.sleep(5)
+        browser = webdriver.Chrome(executable_path=self.driver_url, chrome_options=chrome_options)
+        return browser
+
+    """"
+    功能：如果出现验证机器人，则使用更换代理的方式
+    """
+    def star_proxy_chr(self):
+        self.get_ip()
+        chrome_options = webdriver.ChromeOptions()
+        print("当前IP是: %s" % self.ip)
+        proxy = "--proxy-server=http://" + self.ip
+        chrome_options.add_argument(proxy)
+        chrome_options.add_argument('--ignore-certificate-errors')
+        chrome_options.add_argument('--disable-gpu')
+        # prefs = {"profile.managed_default_content_settings.images": 2}
+        # chrome_options.add_experimental_option("prefs", prefs)
+        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
+        time.sleep(5)
+        browser = webdriver.Chrome(executable_path=self.driver_url, chrome_options=chrome_options)
+        return browser
+
+    def origin_page(self, url, browser):
+        # url = detail["detail_url"]
+        browser.get(url)
+        html = browser.page_source
+        if 'robots' in html:
+            time.sleep(80)
+            self.robots_flag = True
+            raise Exception("robots")
+        return html
+
+    def open_zil(self, url):
+        self.star_chr.get(url)  # 打开网页
+        time.sleep(1)
+        html = self.star_chr.page_source
+        if '无法访问此网站' in html or 'robot' in html or '未连接到互联网' in html:
+            time.sleep(10)
+        else:
+            json_list = etree.HTML(self.star_chr.page_source).xpath('//pre/text()')
+            if json_list:
+                return "".join(json_list)
+        return ""
 
     def get_element(self):
-        result = self.detail_queue.spop("content")
-        _json = {}
-        if result:
-            try:
+        if not self.robots_flag:
+            result = self.detail_queue.spop("content")
+            if result:
                 _json = json.loads(result)
-            except Exception as e:
-                print("pop from detail_queue exception, info: %s" % e)
-        return (_json, result)
+                return (_json, result)
+        return ()
 
 
 def main():
     dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
-    with ThreadPoolExecutor(max_workers=10) as t:
-        # obj_list = []
-        # begin = time.time()
-        while dataopt.detail_queue.scard("content"):
-            _json, result = dataopt.get_element()
-            if _json:
-                dataopt.get_ip()
-                # obj = t.submit(dataopt.data_page, _json, result)
-                t.submit(dataopt.data_page, _json, result)
-                time.sleep(10)
-                # obj_list.append(obj)
-            else:
-                raise Exception("finsh")
-        # for future in as_completed(obj_list):
-        #     data = future.result()
-        #     print(data)
-        #     print('*' * 50)
-        # times = time.time() - begin
-        # print(times)
+    q = Queue(10)  # 默认FIFO队列
+    while dataopt.detail_queue.scard("content"):
+        res = dataopt.get_element()
+        if res:
+            _json, result = res
+            browser = None
+            try:
+                browser = dataopt.star_chr()
+                url = _json['detail_url']
+                html = dataopt.origin_page(url, browser)
+                if q.not_full:
+                    q.put(html)
+            except Exception as e:
+                info = e.args[0]
+                if info == 'robots':
+                    dataopt.star_proxy_chr()
+                dataopt.detail_queue.sadd("content", result)
+            finally:
+                browser.quit()
+        else:
+            raise Exception("finsh")
+
+        with ThreadPoolExecutor(max_workers=5) as t:
+            t.submit(PageDeal, _json, q, dataopt.re_queue)
+            time.sleep(10)
 
 
 if __name__ == '__main__':
-    # detail_queue = redis.Redis(host='47.106.140.94', port='6486', db=2, decode_responses=True)
-    # self.re_queue = redis.Redis(host='47.106.140.94', port='6486')
         main()
-
 
