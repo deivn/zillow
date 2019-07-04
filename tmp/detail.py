@@ -66,7 +66,7 @@ class Consumer(threading.Thread):
             if not que.empty():
                 url, html, detail = que.get()
                 page_deal = PageDeal(detail, html, self.dataopt.re_queue)
-                print("consumer %s take %s" % (self.name, url))
+                print("consumer %s consume %s" % (self.name, url))
                 page_deal.data_page()
                 time.sleep(10)
                 # 发出完成的信号，不发的话，join会永远阻塞，程序不会停止
@@ -223,7 +223,8 @@ class PageDeal(object):
                         phone = source.xpath('//div[@class="ov-seller-lead-agent-phone-info"]/text()')
                         if phone:
                             _phone = re.match(r'.+call\s(\d+-\d+-\d+).+', phone[0])
-                            contact_phone = [_phone]
+                            if _phone:
+                                contact_phone = [_phone.groups()[0]]
         return contact_phone[0] if contact_phone else ""
 
     def data_page(self):
@@ -421,7 +422,6 @@ def produce(dataopt):
 def main():
     # dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
-    # produce(dataopt, que)
     # 启动生产者线程
     for i in range(5):
         # 启动消费者线程
