@@ -113,7 +113,7 @@ def main():
     redis2mysql = Redis2Mysql("city.xlsx", "house_type.xlsx")
     while True:
         # FIFO模式为 blpop，LIFO模式为 brpop，获取键值
-        data = redis2mysql._redis.spop("data")
+        data = redis2mysql._redis.spop("house_data")
         _item = json.loads(data)
         # 使用cursor()方法获取操作游标
         cur = redis2mysql.mysqlcli.cursor()
@@ -160,7 +160,7 @@ def main():
             item['house_img'] = less
             item['house_desc'] = _item['comments']
             try:
-                count = cur.execute("INSERT ignore t_houses_new (\
+                count = cur.execute("INSERT ignore t_houses_new0703 (\
                             house_id, user_id, state_id, city_id, house_type_id, price, hoa_fee, mls, apn, street, \
                             zip, bedroom, bathroom, garage, lot_sqft, user_input_unit, living_sqft, latitude,longitude, \
                             year_build, img_url, origin, garage_sqft, deal_type, rent_payment, check_status, shelf_status, basement_sqft, transaction_status, \
@@ -174,7 +174,7 @@ def main():
                             item['year_build'], item['img_url'], 20190701, 0, item['deal_type'], 1, 1, 1, 0, 1,
                             item['deposit'], item['contact_name'], item['contact_phone'], item['contact_email'], 2, item['create_time'], "", 0, 1, "", 0, item['url']])
                 if count == 1:
-                    cur.execute("INSERT ignore t_house_detail_new (house_id, house_img, house_video, house_desc, house_deed, house_amenities, deny_reason, view_count, house_amenities_value) VALUES (\
+                    cur.execute("INSERT ignore t_house_detail_new0703 (house_id, house_img, house_video, house_desc, house_deed, house_amenities, deny_reason, view_count, house_amenities_value) VALUES (\
                                 %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                                 [item['house_id'], item['house_img'], "", item['house_desc'], "", "", "", 0, ""])
                     print("inserted %s" % item['url'])

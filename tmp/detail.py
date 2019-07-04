@@ -1,7 +1,6 @@
 #! /usr/bin/env python  
 # -*- coding:utf-8 -*-
 from selenium import webdriver
-import time
 from lxml import etree
 import json
 import requests
@@ -13,17 +12,73 @@ from data import Data
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 import threading
+import time
 from queue import Queue
+que = Queue(5)
 
 
-class PageDeal(threading.Thread):
-    def __init__(self, detail, que, re_queue):
-        self.detail = detail
-        self.que = que
-        self.re_queue = re_queue
+class Producer(threading.Thread):
+    """
+    生产html
+    """
+    def __init__(self, dataopt):
+        threading.Thread.__init__(self)
+        self.dataopt = dataopt
 
     def run(self):
-        self.data_page()
+        global que
+        total = self.dataopt.detail_queue.scard("content")
+        while total:
+            if que.empty():
+                result = self.dataopt.detail_queue.spop("content")
+                if result:
+                    _json = json.loads(result)
+                    self.dataopt.get_ip()
+                    browser = self.dataopt.star_chr()
+                    try:
+                        url = _json['detail_url']
+                        html = self.dataopt.origin_page(url, browser)
+                        print("producer %s product %s, the rest of requests %d in queue." % (self.name, url, self.dataopt.detail_queue.scard("content")))
+                        que.put((url, html, _json))
+                    except Exception as e:
+                        info = e.args[0]
+                        if info == 'robots':
+                            self.dataopt.get_ip()
+                        self.dataopt.detail_queue.sadd("content", result)
+                    finally:
+                        browser.quit()
+                    time.sleep(5)
+        else:
+            raise Exception("request empty")
+
+
+class Consumer(threading.Thread):
+    """"
+    消费html
+    """
+    def __init__(self, dataopt):
+        threading.Thread.__init__(self)
+        self.dataopt = dataopt
+
+    def run(self):
+        global que
+        while True:
+            if not que.empty():
+                url, html, detail = que.get()
+                page_deal = PageDeal(detail, html, self.dataopt.re_queue)
+                print("consumer %s take %s" % (self.name, url))
+                page_deal.data_page()
+                time.sleep(10)
+                # 发出完成的信号，不发的话，join会永远阻塞，程序不会停止
+                que.task_done()
+
+
+class PageDeal(object):
+    """解析类"""
+    def __init__(self, detail, html, re_queue):
+        self.detail = detail
+        self.html = html
+        self.re_queue = re_queue
 
     def get_info_by_keyword(self, source, keyword):
         result = source.xpath('//ul[@class="ds-home-fact-list"]/li[@class="ds-home-fact-list-item"]//span[text()="'+keyword+'"]/following-sibling::span/text()')
@@ -174,10 +229,9 @@ class PageDeal(threading.Thread):
     def data_page(self):
         # wait = WebDriverWait(browser, 60)
         # wait.until(EC.presence_of_element_located((By.XPATH, '//ul[@class="media-stream"]/li/picture')))
-        with self.que.not_empty:
-            html = self.que.get()
-            source = etree.HTML(html)
-            print("url------------%s" % self.detail['url'])
+        source = etree.HTML(self.html)
+        # print("url------------%s" % self.detail['detail_url'])
+        try:
             price = self.detail["price"] if "price" in self.detail.keys() else self.get_price(source)
             bedroom = self.detail["bedrooms"] if "bedrooms" in self.detail.keys() else self.get_bedroom(source)
             bathroom = self.detail["bathrooms"] if "bathrooms" in self.detail.keys() else self.get_bathroom(source)
@@ -212,8 +266,10 @@ class PageDeal(threading.Thread):
             contact_name = self.get_contactname(source)
             data = Data(price, bedroom, bathroom, street, deal_type, img_url, living_sqft,
                         comments, agent, house_type, heating, cooling, price_sqft, year_build,
-                        parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", self.detail['url'], mls, apn, garage, deposit, self.detail["zipcode"], self.detail["latitude"], self.detail["longitude"], self.detail["city"], self.detail["state"])
-            self.re_queue.sadd("data", data.dict2str())
+                        parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", self.detail['detail_url'], mls, apn, garage, deposit, self.detail["zipcode"], self.detail["latitude"], self.detail["longitude"], self.detail["city"], self.detail["state"])
+            self.re_queue.sadd("house_data", data.dict2str())
+        except Exception as e:
+            print(e)
 
 
 class DataOpt(object):
@@ -245,7 +301,7 @@ class DataOpt(object):
         self.driver_url = codecs.open(filname, mode, encoding="utf-8").read()
         self.re_queue = redis.Redis(host=host, port=port)
         self.detail_queue = redis.Redis(host=host, port=port, db=db, decode_responses=True)
-        self.robots_flag = False
+        # self.robots_flag = False
 
     def get_ip(self):
         if self.re_queue.scard("proxy_ip") < 3:
@@ -271,7 +327,6 @@ class DataOpt(object):
     功能：如果出现验证机器人，则使用更换代理的方式
     """
     def star_proxy_chr(self):
-        self.get_ip()
         chrome_options = webdriver.ChromeOptions()
         print("当前IP是: %s" % self.ip)
         proxy = "--proxy-server=http://" + self.ip
@@ -291,7 +346,6 @@ class DataOpt(object):
         html = browser.page_source
         if 'robots' in html:
             time.sleep(80)
-            self.robots_flag = True
             raise Exception("robots")
         return html
 
@@ -308,41 +362,81 @@ class DataOpt(object):
         return ""
 
     def get_element(self):
-        if not self.robots_flag:
-            result = self.detail_queue.spop("content")
-            if result:
-                _json = json.loads(result)
-                return (_json, result)
+        result = self.detail_queue.spop("content")
+        if result:
+            _json = json.loads(result)
+            time.sleep(5)
+            return (_json, result)
         return ()
 
 
-def main():
-    dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
-    q = Queue(10)  # 默认FIFO队列
-    while dataopt.detail_queue.scard("content"):
-        res = dataopt.get_element()
-        if res:
-            _json, result = res
-            browser = None
+# def main():
+#     dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
+#     # dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
+#     while dataopt.detail_queue.scard("content"):
+#         res = dataopt.get_element()
+#         if res:
+#             _json, result = res
+#             browser = None
+#             url = _json['detail_url']
+#             try:
+#                 browser = dataopt.star_chr()
+#                 html = dataopt.origin_page(url, browser)
+#                 page_deal = PageDeal(_json, html, dataopt.re_queue)
+#                 page_deal.data_page()
+#                 time.sleep(10)
+#             except Exception as e:
+#                 info = e.args[0]
+#                 if info == 'robots':
+#                     dataopt.robots_flag = True
+#                     dataopt.get_ip()
+#                     dataopt.detail_queue.sadd("content", result)
+#             finally:
+#                 browser.quit()
+#         else:
+#             raise Exception("finsh")
+
+def produce(dataopt):
+    # 先在消息队列中放入200个初始产品
+    print("main thread start")
+    total = dataopt.detail_queue.scard("content")
+    for i in range(1, 6):
+        result = dataopt.detail_queue.spop("content")
+        if result:
+            _json = json.loads(result)
+            # dataopt.get_ip()
+            browser = dataopt.star_chr()
             try:
-                browser = dataopt.star_chr()
                 url = _json['detail_url']
                 html = dataopt.origin_page(url, browser)
-                if q.not_full:
-                    q.put(html)
+                que.put((url, html, _json))
             except Exception as e:
-                info = e.args[0]
-                if info == 'robots':
-                    dataopt.star_proxy_chr()
+                dataopt.get_ip()
                 dataopt.detail_queue.sadd("content", result)
             finally:
                 browser.quit()
-        else:
-            raise Exception("finsh")
+    print("predict redis-db2 take url %d, redis-db2 less %d requests" % (que.qsize(), total))
 
-        with ThreadPoolExecutor(max_workers=5) as t:
-            t.submit(PageDeal, _json, q, dataopt.re_queue)
-            time.sleep(10)
+
+def main():
+    # dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
+    dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
+    # produce(dataopt, que)
+    # 启动生产者线程
+    for i in range(5):
+        # 启动消费者线程
+        p = Producer(dataopt)
+        p.start()
+    # 这里休眠一秒钟，等到队列有值，否则队列创建时是空的，主线程直接就结束了，实验失败，造成误导
+    time.sleep(5)
+    for i in range(2):
+        # 启动消费者线程
+        c1 = Consumer(dataopt)
+        c1.start()
+    global que
+    # 接收信号，主线程在这里等待队列被处理完毕后再做下一步
+    que.join()
+    # 给个标示，表示主线程已经结束
 
 
 if __name__ == '__main__':
