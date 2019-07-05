@@ -45,9 +45,9 @@ class Producer(threading.Thread):
                         if info == 'robots':
                             self.dataopt.get_ip()
                         self.dataopt.detail_queue.sadd("content", result)
+                        time.sleep(5)
                     finally:
                         browser.quit()
-                    time.sleep(5)
         else:
             raise Exception("request empty")
 
