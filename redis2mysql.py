@@ -88,11 +88,16 @@ class Redis2Mysql(object):
     def img_deal(self, imgs):
         # 字符串不包含谷歌图片并且长度大小为1和大余1的情况
         _imgs = imgs.split(",")
-        if len(_imgs) == 1:
-            return (_imgs[0], _imgs[0])
-        first = imgs[:imgs.find(',')]
-        less = imgs[imgs.find(',') + 1:]
-        return (first, less)
+        if len(_imgs) > 1:
+            first = imgs[:imgs.find(',')].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com")
+            less = ''
+            if len(_imgs) == 2:
+                less = imgs
+            else:
+                first = imgs[:imgs.find(',')].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com")
+                less = imgs[imgs.find(',') + 1:].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com")
+            return (first, less)
+        return ()
 
     def get_dealtype(self, dealtype):
         _dealtype = dealtype.lower()
@@ -123,8 +128,9 @@ def main():
         house_type_id = redis2mysql.get_housetypeid(_item['house_type'])
         lot_sqft = _item['lot_sqft'] if _item['lot_sqft'] and _item['lot_sqft'] != -1.0 else 0
         city_id = redis2mysql.get_cid(_item['state'], _item['city'])
-        # 按图片，手机号,房源类型,占地面积, 城市过滤
-        if imgs and contact_phone and house_type_id and lot_sqft and city_id:
+        street = _item['street']
+        # 按图片，手机号,房源类型,占地面积, 城市过滤,地址(undisclosed-Address)过滤
+        if imgs and contact_phone and house_type_id and lot_sqft and city_id and street.find("undisclosed") == -1:
             # 使用execute方法执行SQL INSERT语
             item['house_id'] = redis2mysql.get_houseid(_item['street'])
             item['user_id'] = '84737239254302720'
@@ -135,7 +141,7 @@ def main():
             item['hoa_fee'] = _item['hoa_fee'] if _item['hoa_fee'] and _item['hoa_fee'] != 'No' else "0"
             item['mls'] = _item['mls'] if _item['mls'] and _item['mls'] != 'No' else ""
             item['apn'] = _item['apn'] if _item['apn'] and _item['apn'] != 'No' else ""
-            item['street'] = _item['street']
+            item['street'] = street
             item['zip'] = _item['zip']
             item['bedroom'] = _item['bedroom']
             item['bathroom'] = _item['bathroom']
@@ -180,7 +186,7 @@ def main():
                     print("inserted %s" % item['url'])
             except Exception as e:
                 print(e)
-                cur.execute("delete from t_houses_new where house_id = %s",[item['house_id']])
+                cur.execute("delete from t_houses_new0703 where house_id = %s",[item['house_id']])
             finally:
                 # 提交sql事务
                 redis2mysql.mysqlcli.commit()
