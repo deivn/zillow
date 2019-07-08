@@ -14,7 +14,7 @@ import random
 import threading
 import time
 from queue import Queue
-que = Queue(5)
+que = Queue(16)
 
 
 class Producer(threading.Thread):
@@ -423,13 +423,13 @@ def main():
     # dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     # 启动生产者线程
-    for i in range(5):
+    for i in range(8):
         # 启动消费者线程
         p = Producer(dataopt)
         p.start()
     # 这里休眠一秒钟，等到队列有值，否则队列创建时是空的，主线程直接就结束了，实验失败，造成误导
-    time.sleep(5)
-    for i in range(2):
+    time.sleep(8)
+    for i in range(8):
         # 启动消费者线程
         c1 = Consumer(dataopt)
         c1.start()
