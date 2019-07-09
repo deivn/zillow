@@ -3,13 +3,11 @@
 from selenium import webdriver
 from lxml import etree
 import json
-import requests
 import codecs
 import redis
 import re
 from decimal import Decimal
 from data import Data
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import random
 import threading
 import time
@@ -33,23 +31,22 @@ class Producer(threading.Thread):
                 result = self.dataopt.detail_queue.spop("content")
                 if result:
                     _json = json.loads(result)
-                    self.dataopt.get_ip()
-                    browser = self.dataopt.star_chr()
-                    try:
-                        url = _json['detail_url']
-                        html = self.dataopt.origin_page(url, browser)
-                        print("producer %s product %s, the rest of requests %d in queue." % (self.name, url, self.dataopt.detail_queue.scard("content")))
-                        que.put((url, html, _json))
-                    except Exception as e:
-                        info = e.args[0]
-                        if info == 'robots':
-                            self.dataopt.get_ip()
-                        self.dataopt.detail_queue.sadd("content", result)
-                        time.sleep(5)
-                    finally:
-                        browser.quit()
-        else:
-            raise Exception("request empty")
+                    url = _json['detail_url']
+                    _re = re.findall('undisclosed', url)
+                    if not _re:
+                        browser = self.dataopt.star_chr()
+                        try:
+                            html = self.dataopt.origin_page(url, browser)
+                            print("producer %s product %s, the rest of requests %d in queue." % (self.name, url, self.dataopt.detail_queue.scard("content")))
+                            que.put((url, html, _json))
+                        except Exception as e:
+                            print(e)
+                            self.dataopt.detail_queue.sadd("content", result)
+                            time.sleep(5)
+                        finally:
+                            browser.quit()
+                else:
+                    raise Exception("request empty")
 
 
 class Consumer(threading.Thread):
@@ -68,7 +65,6 @@ class Consumer(threading.Thread):
                 page_deal = PageDeal(detail, html, self.dataopt.re_queue)
                 print("consumer %s consume %s" % (self.name, url))
                 page_deal.data_page()
-                time.sleep(10)
                 # 发出完成的信号，不发的话，join会永远阻塞，程序不会停止
                 que.task_done()
 
@@ -233,44 +229,42 @@ class PageDeal(object):
         source = etree.HTML(self.html)
         # print("url------------%s" % self.detail['detail_url'])
         try:
+            price = self.detail["price"] if "price" in self.detail.keys() else self.get_price(source)
+            bedroom = self.detail["bedrooms"] if "bedrooms" in self.detail.keys() else self.get_bedroom(source)
+            bathroom = self.detail["bathrooms"] if "bathrooms" in self.detail.keys() else self.get_bathroom(source)
             street = self.detail["streetAddress"] if "streetAddress" in self.detail.keys() else self.get_street(source)
-            if street.find("undisclosed") == -1:
-                price = self.detail["price"] if "price" in self.detail.keys() else self.get_price(source)
-                bedroom = self.detail["bedrooms"] if "bedrooms" in self.detail.keys() else self.get_bedroom(source)
-                bathroom = self.detail["bathrooms"] if "bathrooms" in self.detail.keys() else self.get_bathroom(source)
-                street = self.detail["streetAddress"] if "streetAddress" in self.detail.keys() else self.get_street(source)
-                deal_type = self.get_dealtype(source)
-                img_url = self.get_imgurl(source)
-                living_sqft = self.detail["livingArea"] if "livingArea" in self.detail.keys() else self.get_livingsqft(source)
-                comments = self.get_desc(source).replace("\n", "")
-                agent = self.get_agent(source)
-                # house_type = self.get_info_by_keyword(source, 'Type:')
-                house_type = self.get_info_by_keyword(source, 'Type:')
-                _housetype = house_type if house_type else source.xpath( '//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()')
-                house_type = self.detail["homeType"] if "homeType" in self.detail.keys() else _housetype
-                heating = self.get_heating(source)
-                cooling = self.get_cooling(source)
-                price_sqft = self.get_pricesqft(source)
-                # Year built
-                year_build = str(self.detail["yearBuilt"]) if "yearBuilt" in self.detail.keys() else self.get_info_by_keyword(source, 'Year built:')
-                if not year_build or year_build == "-1":
-                    year_build = self.get_yearbuild(source)
-                    if not year_build:
-                        year_build = source.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Year Built")]/following-sibling::div/text()')
-                parking = self.get_parking(source)
-                lot_sqft = self.detail["lotSize"] if "lotSize" in self.detail.keys() else self.get_lotsqft(source)
-                hoa_fee = self.get_hoafee(source)
-                mls = self.get_mls(source)
-                apn = self.get_apn(source)
-                garage = self.get_garage(source, 'Parking:')
-                deposit = self.get_info_by_keyword(source, 'Deposit & fees:')
-                contact_phone = self.get_contactphone(source)
-                # time_on_zillow = detail["timeOnZillow"] if "timeOnZillow" in detail.keys() else 0
-                contact_name = self.get_contactname(source)
-                data = Data(price, bedroom, bathroom, street, deal_type, img_url, living_sqft,
-                            comments, agent, house_type, heating, cooling, price_sqft, year_build,
-                            parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", self.detail['detail_url'], mls, apn, garage, deposit, self.detail["zipcode"], self.detail["latitude"], self.detail["longitude"], self.detail["city"], self.detail["state"])
-                self.re_queue.sadd("house_data", data.dict2str())
+            deal_type = self.get_dealtype(source)
+            img_url = self.get_imgurl(source)
+            living_sqft = self.detail["livingArea"] if "livingArea" in self.detail.keys() else self.get_livingsqft(source)
+            comments = self.get_desc(source).replace("\n", "")
+            agent = self.get_agent(source)
+            # house_type = self.get_info_by_keyword(source, 'Type:')
+            house_type = self.get_info_by_keyword(source, 'Type:')
+            _housetype = house_type if house_type else source.xpath( '//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()')
+            house_type = self.detail["homeType"] if "homeType" in self.detail.keys() else _housetype
+            heating = self.get_heating(source)
+            cooling = self.get_cooling(source)
+            price_sqft = self.get_pricesqft(source)
+            # Year built
+            year_build = str(self.detail["yearBuilt"]) if "yearBuilt" in self.detail.keys() else self.get_info_by_keyword(source, 'Year built:')
+            if not year_build or year_build == "-1":
+                year_build = self.get_yearbuild(source)
+                if not year_build:
+                    year_build = source.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Year Built")]/following-sibling::div/text()')
+            parking = self.get_parking(source)
+            lot_sqft = self.detail["lotSize"] if "lotSize" in self.detail.keys() else self.get_lotsqft(source)
+            hoa_fee = self.get_hoafee(source)
+            mls = self.get_mls(source)
+            apn = self.get_apn(source)
+            garage = self.get_garage(source, 'Parking:')
+            deposit = self.get_info_by_keyword(source, 'Deposit & fees:')
+            contact_phone = self.get_contactphone(source)
+            # time_on_zillow = detail["timeOnZillow"] if "timeOnZillow" in detail.keys() else 0
+            contact_name = self.get_contactname(source)
+            data = Data(price, bedroom, bathroom, street, deal_type, img_url, living_sqft,
+                        comments, agent, house_type, heating, cooling, price_sqft, year_build,
+                        parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", self.detail['detail_url'], mls, apn, garage, deposit, self.detail["zipcode"], self.detail["latitude"], self.detail["longitude"], self.detail["city"], self.detail["state"])
+            self.re_queue.sadd("house_data", data.dict2str())
         except Exception as e:
             print(e)
 
@@ -300,20 +294,10 @@ class DataOpt(object):
                'user-agent': random.choice(USER_AGENTS)}
 
     def __init__(self, filname, mode, host, port, db):
-        # self.ip = requests.get('https://dps.kdlapi.com/api/getdps/?orderid=916161680251769&num=1&area=%E5%B9%BF%E4%B8%9C%2C%E7%A6%8F%E5%BB%BA%2C%E6%B5%99%E6%B1%9F%2C%E6%B1%9F%E8%A5%BF%2C%E5%8C%97%E4%BA%AC%2C%E6%B9%96%E5%8D%97%2C%E9%A6%99%E6%B8%AF%2C%E4%BA%91%E5%8D%97%2C%E5%A4%A9%E6%B4%A5&pt=1&dedup=1&sep=1&signature=hlmmo7aeico6vfnt0fzrljg84txca7zw').text
         self.driver_url = codecs.open(filname, mode, encoding="utf-8").read()
         self.re_queue = redis.Redis(host=host, port=port)
         self.detail_queue = redis.Redis(host=host, port=port, db=db, decode_responses=True)
-        # self.robots_flag = False
 
-    def get_ip(self):
-        if self.re_queue.scard("proxy_ip") < 3:
-            _ip = requests.get('https://dps.kdlapi.com/api/getdps/?orderid=916161680251769&num=1&area=%E5%B9%BF%E4%B8%9C%2C%E7%A6%8F%E5%BB%BA%2C%E6%B5%99%E6%B1%9F%2C%E6%B1%9F%E8%A5%BF%2C%E5%8C%97%E4%BA%AC%2C%E6%B9%96%E5%8D%97%2C%E9%A6%99%E6%B8%AF%2C%E4%BA%91%E5%8D%97%2C%E5%A4%A9%E6%B4%A5&pt=1&dedup=1&sep=1&signature=hlmmo7aeico6vfnt0fzrljg84txca7zw').text
-            self.re_queue.sadd("proxy_ip", _ip)
-            self.ip = _ip
-        else:
-            # 返回1个随机数
-            self.ip = self.re_queue.srandmember("proxy_ip", 1)[0].decode()
 
     def star_chr(self):
         chrome_options = webdriver.ChromeOptions()
@@ -352,18 +336,6 @@ class DataOpt(object):
             raise Exception("robots")
         return html
 
-    def open_zil(self, url):
-        self.star_chr.get(url)  # 打开网页
-        time.sleep(1)
-        html = self.star_chr.page_source
-        if '无法访问此网站' in html or 'robot' in html or '未连接到互联网' in html:
-            time.sleep(10)
-        else:
-            json_list = etree.HTML(self.star_chr.page_source).xpath('//pre/text()')
-            if json_list:
-                return "".join(json_list)
-        return ""
-
     def get_element(self):
         result = self.detail_queue.spop("content")
         if result:
@@ -371,54 +343,6 @@ class DataOpt(object):
             time.sleep(5)
             return (_json, result)
         return ()
-
-
-# def main():
-#     dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
-#     # dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
-#     while dataopt.detail_queue.scard("content"):
-#         res = dataopt.get_element()
-#         if res:
-#             _json, result = res
-#             browser = None
-#             url = _json['detail_url']
-#             try:
-#                 browser = dataopt.star_chr()
-#                 html = dataopt.origin_page(url, browser)
-#                 page_deal = PageDeal(_json, html, dataopt.re_queue)
-#                 page_deal.data_page()
-#                 time.sleep(10)
-#             except Exception as e:
-#                 info = e.args[0]
-#                 if info == 'robots':
-#                     dataopt.robots_flag = True
-#                     dataopt.get_ip()
-#                     dataopt.detail_queue.sadd("content", result)
-#             finally:
-#                 browser.quit()
-#         else:
-#             raise Exception("finsh")
-
-def produce(dataopt):
-    # 先在消息队列中放入200个初始产品
-    print("main thread start")
-    total = dataopt.detail_queue.scard("content")
-    for i in range(1, 6):
-        result = dataopt.detail_queue.spop("content")
-        if result:
-            _json = json.loads(result)
-            # dataopt.get_ip()
-            browser = dataopt.star_chr()
-            try:
-                url = _json['detail_url']
-                html = dataopt.origin_page(url, browser)
-                que.put((url, html, _json))
-            except Exception as e:
-                dataopt.get_ip()
-                dataopt.detail_queue.sadd("content", result)
-            finally:
-                browser.quit()
-    print("predict redis-db2 take url %d, redis-db2 less %d requests" % (que.qsize(), total))
 
 
 def main():
@@ -429,12 +353,12 @@ def main():
         # 启动消费者线程
         p = Producer(dataopt)
         p.start()
-    # 这里休眠一秒钟，等到队列有值，否则队列创建时是空的，主线程直接就结束了，实验失败，造成误导
-    time.sleep(8)
+        time.sleep(5)
     for i in range(8):
         # 启动消费者线程
         c1 = Consumer(dataopt)
         c1.start()
+        time.sleep(10)
     global que
     # 接收信号，主线程在这里等待队列被处理完毕后再做下一步
     que.join()
