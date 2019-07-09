@@ -64,6 +64,7 @@ class Redis2Mysql(object):
                     return id
         return ""
 
+
     def get_garage(self, garage):
         tmp = 0
         if garage and garage != 'No':
@@ -118,82 +119,133 @@ def main():
     while True:
         # FIFO模式为 blpop，LIFO模式为 brpop，获取键值
         data = redis2mysql._redis.spop("house_data")
-        _item = json.loads(data)
-        # 使用cursor()方法获取操作游标
-        cur = redis2mysql.mysqlcli.cursor()
-        item = {}
-        imgs = redis2mysql.get_img(_item['img_url'], 'maps.googleapis.com')
-        contact_phone = _item['contact_phone'] if _item['contact_phone'] else ""
-        house_type_id = redis2mysql.get_housetypeid(_item['house_type'])
-        lot_sqft = _item['lot_sqft'] if _item['lot_sqft'] and _item['lot_sqft'] != -1.0 else 0
-        city_id = redis2mysql.get_cid(_item['state'], _item['city'])
-        street = _item['street']
-        # 按图片，手机号,房源类型,占地面积, 城市过滤,地址(undisclosed-Address)过滤
-        if imgs and contact_phone and house_type_id and lot_sqft and city_id and street.find("undisclosed") == -1:
-            # 使用execute方法执行SQL INSERT语
-            item['house_id'] = redis2mysql.get_houseid(_item['street'])
-            item['user_id'] = '84737239254302720'
-            item['state_id'] = _item['state']
-            item['city_id'] = city_id
-            item['house_type_id'] = house_type_id
-            item['price'] = _item['price']
-            item['hoa_fee'] = _item['hoa_fee'] if _item['hoa_fee'] and _item['hoa_fee'] != 'No' else "0"
-            item['mls'] = _item['mls'] if _item['mls'] and _item['mls'] != 'No' else ""
-            item['apn'] = _item['apn'] if _item['apn'] and _item['apn'] != 'No' else ""
-            item['street'] = street
-            item['zip'] = _item['zip']
-            item['bedroom'] = _item['bedroom']
-            item['bathroom'] = _item['bathroom']
-            item['garage'] = redis2mysql.get_garage(_item['garage'])
-            item['lot_sqft'] = _item['lot_sqft'] if _item['lot_sqft'] and _item['lot_sqft'] != -1.0 else 0
-            item['user_input_unit'] = str(item['lot_sqft']) + ' sqft'
-            item['living_sqft'] = _item['living_sqft'] if _item['living_sqft'] and _item['living_sqft'] != -1.0 else 0
-            item['latitude'] = _item['latitude']
-            item['longitude'] = _item['longitude']
-            item['year_build'] = _item['year_build'] if _item['year_build'] else "2015"
-            first, less = imgs
-            item['img_url'] = first
-            item['deal_type'] = redis2mysql.get_dealtype(_item['deal_type'])
-            item['deposit'] = redis2mysql.get_deposit(_item['deposit'])
-            item['contact_name'] = _item['contact_name'] if _item['contact_name'] else ""
-            item['contact_phone'] = contact_phone
-            item['contact_email'] = '2991142350@qq.com'
-            # 2014-01-01 01:03:05 ----->  2019-07-01 01:03:05
-            item['create_time'] = random.randint(1388509385, 1561914185)
-            item['url'] = _item['url']
-            # -------------------------------house_detail----------------
-            item['house_img'] = less
-            item['house_desc'] = _item['comments']
+        if data:
+            _item = json.loads(data)
+            # 使用cursor()方法获取操作游标
+            conn = redis2mysql.mysqlcli
+            cur = conn.cursor()
+            item = {}
+            imgs = redis2mysql.get_img(_item['img_url'], 'maps.googleapis.com')
+            contact_phone = _item['contact_phone'] if _item['contact_phone'] else ""
+            house_type_id = redis2mysql.get_housetypeid(_item['house_type'])
+            lot_sqft = _item['lot_sqft'] if _item['lot_sqft'] and _item['lot_sqft'] != -1.0 else 0
+            city_id = redis2mysql.get_cid(_item['state'], _item['city'])
+            street = _item['street']
+            # 按图片，手机号,房源类型,占地面积, 城市过滤,地址(undisclosed-Address)过滤
+            if imgs and contact_phone and house_type_id and lot_sqft and city_id and street.find("undisclosed") == -1:
+                # 使用execute方法执行SQL INSERT语
+                item['house_id'] = redis2mysql.get_houseid(_item['street'])
+                item['user_id'] = '84737239254302720'
+                item['state_id'] = _item['state']
+                item['city_id'] = city_id
+                item['house_type_id'] = house_type_id
+                item['price'] = _item['price']
+                item['hoa_fee'] = _item['hoa_fee'] if _item['hoa_fee'] and _item['hoa_fee'] != 'No' else "0"
+                item['mls'] = _item['mls'] if _item['mls'] and _item['mls'] != 'No' else ""
+                item['apn'] = _item['apn'] if _item['apn'] and _item['apn'] != 'No' else ""
+                item['street'] = street
+                item['zip'] = _item['zip']
+                item['bedroom'] = _item['bedroom']
+                item['bathroom'] = _item['bathroom']
+                item['garage'] = redis2mysql.get_garage(_item['garage'])
+                item['lot_sqft'] = _item['lot_sqft'] if _item['lot_sqft'] and _item['lot_sqft'] != -1.0 else 0
+                item['user_input_unit'] = str(item['lot_sqft']) + ' sqft'
+                item['living_sqft'] = _item['living_sqft'] if _item['living_sqft'] and _item['living_sqft'] != -1.0 else 0
+                item['latitude'] = _item['latitude']
+                item['longitude'] = _item['longitude']
+                item['year_build'] = _item['year_build'] if _item['year_build'] else "2015"
+                first, less = imgs
+                item['img_url'] = first
+                item['deal_type'] = redis2mysql.get_dealtype(_item['deal_type'])
+                item['deposit'] = redis2mysql.get_deposit(_item['deposit'])
+                item['contact_name'] = _item['contact_name'] if _item['contact_name'] else ""
+                item['contact_phone'] = contact_phone
+                item['contact_email'] = '2991142350@qq.com'
+                # 2014-01-01 01:03:05 ----->  2019-07-01 01:03:05
+                item['create_time'] = random.randint(1388509385, 1561914185)
+                item['url'] = _item['url']
+                # -------------------------------house_detail----------------
+                item['house_img'] = less
+                item['house_desc'] = _item['comments']
+                try:
+                    count = cur.execute("INSERT ignore t_houses_new0703 (\
+                                house_id, user_id, state_id, city_id, house_type_id, price, hoa_fee, mls, apn, street, \
+                                zip, bedroom, bathroom, garage, lot_sqft, user_input_unit, living_sqft, latitude,longitude, \
+                                year_build, img_url, origin, garage_sqft, deal_type, rent_payment, check_status, shelf_status, basement_sqft, transaction_status, \
+                                deposit, contact_name, contact_phone, contact_email, email_conceal, create_time, decorate_grade, count_share, enable_status, advantage, property_tax, url) VALUES (\
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, \
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, \
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, \
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                [item['house_id'], item['user_id'], item['state_id'], item['city_id'], item['house_type_id'], item['price'], item['hoa_fee'], item['mls'], item['apn'], item['street'],
+                                 item['zip'], item['bedroom'], item['bathroom'], item['garage'], item['lot_sqft'], item['user_input_unit'], item['living_sqft'], item['latitude'], item['longitude'],
+                                item['year_build'], item['img_url'], 20190701, 0, item['deal_type'], 1, 1, 1, 0, 1,
+                                item['deposit'], item['contact_name'], item['contact_phone'], item['contact_email'], 2, item['create_time'], "", 0, 1, "", 0, item['url']])
+                    if count == 1:
+                        cur.execute("INSERT ignore t_house_detail_new0703 (house_id, house_img, house_video, house_desc, house_deed, house_amenities, deny_reason, view_count, house_amenities_value) VALUES (\
+                                    %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                                    [item['house_id'], item['house_img'], "", item['house_desc'], "", "", "", 0, ""])
+                        print("inserted %s" % item['url'])
+                        # 提交sql事务
+                        conn.commit()
+                except Exception as e:
+                    print(e)
+                    cur.execute("delete from t_houses_new0703 where house_id = %s", [item['house_id']])
+                    # 提交sql事务
+                    conn.commit()
+                finally:
+                    # 关闭本次操作
+                    cur.close()
+                    conn.close()
+            else:
+                continue
+        else:
+            # 去重
+            # 使用cursor()方法获取操作游标
+            conn = redis2mysql.mysqlcli
+            cur = conn.cursor()
             try:
-                count = cur.execute("INSERT ignore t_houses_new0703 (\
-                            house_id, user_id, state_id, city_id, house_type_id, price, hoa_fee, mls, apn, street, \
-                            zip, bedroom, bathroom, garage, lot_sqft, user_input_unit, living_sqft, latitude,longitude, \
-                            year_build, img_url, origin, garage_sqft, deal_type, rent_payment, check_status, shelf_status, basement_sqft, transaction_status, \
-                            deposit, contact_name, contact_phone, contact_email, email_conceal, create_time, decorate_grade, count_share, enable_status, advantage, property_tax, url) VALUES (\
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, \
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, \
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, \
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                            [item['house_id'], item['user_id'], item['state_id'], item['city_id'], item['house_type_id'], item['price'], item['hoa_fee'], item['mls'], item['apn'], item['street'],
-                             item['zip'], item['bedroom'], item['bathroom'], item['garage'], item['lot_sqft'], item['user_input_unit'], item['living_sqft'], item['latitude'], item['longitude'],
-                            item['year_build'], item['img_url'], 20190701, 0, item['deal_type'], 1, 1, 1, 0, 1,
-                            item['deposit'], item['contact_name'], item['contact_phone'], item['contact_email'], 2, item['create_time'], "", 0, 1, "", 0, item['url']])
-                if count == 1:
-                    cur.execute("INSERT ignore t_house_detail_new0703 (house_id, house_img, house_video, house_desc, house_deed, house_amenities, deny_reason, view_count, house_amenities_value) VALUES (\
-                                %s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                                [item['house_id'], item['house_img'], "", item['house_desc'], "", "", "", 0, ""])
-                    print("inserted %s" % item['url'])
+                # 删除重复
+                rows = cur.execute("DELETE FROM t_houses_new0703 WHERE house_id IN (SELECT house_id FROM (SELECT house_id \
+                    FROM t_houses_new0703 GROUP BY house_id HAVING COUNT(house_id) > 1 ) a ) AND id NOT IN (\
+                                   SELECT hid FROM (SELECT MIN(id) AS hid FROM t_houses_new0703 GROUP BY house_id HAVING \
+                                   COUNT(house_id) > 1 ) b)", [])
+                print("去重%d条记录" % rows)
+                conn.commit()
             except Exception as e:
                 print(e)
-                cur.execute("delete from t_houses_new0703 where house_id = %s",[item['house_id']])
             finally:
-                # 提交sql事务
-                redis2mysql.mysqlcli.commit()
-                # 关闭本次操作
                 cur.close()
-        else:
-            continue
+                conn.close()
+
+
+def deal():
+    conn = MySQLdb.connect(host='120.78.196.201', user='ebuyhouse', passwd='ebuyhouse', db='crawl', port=3306, use_unicode=True, charset='utf8')
+    cur = conn.cursor()
+    try:
+        # cur.execute("select id, img_url from t_houses_new0703 where img_url like '%:443%'")
+        # select id, house_img from t_house_detail_new0703 where house_img like '%:443%';
+        cur.execute("select id, house_img from t_house_detail_new0703 where house_img like '%:443%'")
+
+        _imgs = cur.fetchall()
+        if _imgs:
+            count = 0
+            for id, house_img in _imgs:
+                _tmp = house_img.replace(":443", "")
+                try:
+                    # _count = cur.execute("update t_houses_new0703 set img_url = %s where id = %s", [_tmp, id])
+                    _count = cur.execute("update t_house_detail_new0703 set house_img = %s where id = %s", [_tmp, id])
+
+                    count += _count
+                    conn.commit()
+                except Exception as e:
+                    print(e)
+            print("共计处理图片地址中包含:443关键字%d条" % count)
+    finally:
+        cur.close()
+        conn.close()
 
 
 if __name__ == '__main__':
     main()
+    # deal()

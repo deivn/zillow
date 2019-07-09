@@ -233,42 +233,44 @@ class PageDeal(object):
         source = etree.HTML(self.html)
         # print("url------------%s" % self.detail['detail_url'])
         try:
-            price = self.detail["price"] if "price" in self.detail.keys() else self.get_price(source)
-            bedroom = self.detail["bedrooms"] if "bedrooms" in self.detail.keys() else self.get_bedroom(source)
-            bathroom = self.detail["bathrooms"] if "bathrooms" in self.detail.keys() else self.get_bathroom(source)
             street = self.detail["streetAddress"] if "streetAddress" in self.detail.keys() else self.get_street(source)
-            deal_type = self.get_dealtype(source)
-            img_url = self.get_imgurl(source)
-            living_sqft = self.detail["livingArea"] if "livingArea" in self.detail.keys() else self.get_livingsqft(source)
-            comments = self.get_desc(source).replace("\n", "")
-            agent = self.get_agent(source)
-            # house_type = self.get_info_by_keyword(source, 'Type:')
-            house_type = self.get_info_by_keyword(source, 'Type:')
-            _housetype = house_type if house_type else source.xpath( '//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()')
-            house_type = self.detail["homeType"] if "homeType" in self.detail.keys() else _housetype
-            heating = self.get_heating(source)
-            cooling = self.get_cooling(source)
-            price_sqft = self.get_pricesqft(source)
-            # Year built
-            year_build = str(self.detail["yearBuilt"]) if "yearBuilt" in self.detail.keys() else self.get_info_by_keyword(source, 'Year built:')
-            if not year_build or year_build == "-1":
-                year_build = self.get_yearbuild(source)
-                if not year_build:
-                    year_build = source.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Year Built")]/following-sibling::div/text()')
-            parking = self.get_parking(source)
-            lot_sqft = self.detail["lotSize"] if "lotSize" in self.detail.keys() else self.get_lotsqft(source)
-            hoa_fee = self.get_hoafee(source)
-            mls = self.get_mls(source)
-            apn = self.get_apn(source)
-            garage = self.get_garage(source, 'Parking:')
-            deposit = self.get_info_by_keyword(source, 'Deposit & fees:')
-            contact_phone = self.get_contactphone(source)
-            # time_on_zillow = detail["timeOnZillow"] if "timeOnZillow" in detail.keys() else 0
-            contact_name = self.get_contactname(source)
-            data = Data(price, bedroom, bathroom, street, deal_type, img_url, living_sqft,
-                        comments, agent, house_type, heating, cooling, price_sqft, year_build,
-                        parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", self.detail['detail_url'], mls, apn, garage, deposit, self.detail["zipcode"], self.detail["latitude"], self.detail["longitude"], self.detail["city"], self.detail["state"])
-            self.re_queue.sadd("house_data", data.dict2str())
+            if street.find("undisclosed") == -1:
+                price = self.detail["price"] if "price" in self.detail.keys() else self.get_price(source)
+                bedroom = self.detail["bedrooms"] if "bedrooms" in self.detail.keys() else self.get_bedroom(source)
+                bathroom = self.detail["bathrooms"] if "bathrooms" in self.detail.keys() else self.get_bathroom(source)
+                street = self.detail["streetAddress"] if "streetAddress" in self.detail.keys() else self.get_street(source)
+                deal_type = self.get_dealtype(source)
+                img_url = self.get_imgurl(source)
+                living_sqft = self.detail["livingArea"] if "livingArea" in self.detail.keys() else self.get_livingsqft(source)
+                comments = self.get_desc(source).replace("\n", "")
+                agent = self.get_agent(source)
+                # house_type = self.get_info_by_keyword(source, 'Type:')
+                house_type = self.get_info_by_keyword(source, 'Type:')
+                _housetype = house_type if house_type else source.xpath( '//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Type")]/following-sibling::div/text()')
+                house_type = self.detail["homeType"] if "homeType" in self.detail.keys() else _housetype
+                heating = self.get_heating(source)
+                cooling = self.get_cooling(source)
+                price_sqft = self.get_pricesqft(source)
+                # Year built
+                year_build = str(self.detail["yearBuilt"]) if "yearBuilt" in self.detail.keys() else self.get_info_by_keyword(source, 'Year built:')
+                if not year_build or year_build == "-1":
+                    year_build = self.get_yearbuild(source)
+                    if not year_build:
+                        year_build = source.xpath('//div[@class="home-facts-at-a-glance-section"]//div[contains(text(), "Year Built")]/following-sibling::div/text()')
+                parking = self.get_parking(source)
+                lot_sqft = self.detail["lotSize"] if "lotSize" in self.detail.keys() else self.get_lotsqft(source)
+                hoa_fee = self.get_hoafee(source)
+                mls = self.get_mls(source)
+                apn = self.get_apn(source)
+                garage = self.get_garage(source, 'Parking:')
+                deposit = self.get_info_by_keyword(source, 'Deposit & fees:')
+                contact_phone = self.get_contactphone(source)
+                # time_on_zillow = detail["timeOnZillow"] if "timeOnZillow" in detail.keys() else 0
+                contact_name = self.get_contactname(source)
+                data = Data(price, bedroom, bathroom, street, deal_type, img_url, living_sqft,
+                            comments, agent, house_type, heating, cooling, price_sqft, year_build,
+                            parking, lot_sqft, hoa_fee, contact_phone, contact_name, "", self.detail['detail_url'], mls, apn, garage, deposit, self.detail["zipcode"], self.detail["latitude"], self.detail["longitude"], self.detail["city"], self.detail["state"])
+                self.re_queue.sadd("house_data", data.dict2str())
         except Exception as e:
             print(e)
 
