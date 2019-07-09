@@ -89,13 +89,12 @@ class Redis2Mysql(object):
         # 字符串不包含谷歌图片并且长度大小为1和大余1的情况
         _imgs = imgs.split(",")
         if len(_imgs) > 1:
-            first = imgs[:imgs.find(',')].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com")
+            first = imgs[:imgs.find(',')].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com").replace(":443", "")
             less = ''
             if len(_imgs) == 2:
-                less = imgs
+                less = imgs.replace(":443", "")
             else:
-                first = imgs[:imgs.find(',')].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com")
-                less = imgs[imgs.find(',') + 1:].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com")
+                less = imgs[imgs.find(',') + 1:].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com").replace(":443", "")
             return (first, less)
         return ()
 
