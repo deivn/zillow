@@ -12,7 +12,7 @@ import random
 import threading
 import time
 from queue import Queue
-que = Queue(16)
+que = Queue(10)
 
 
 class Producer(threading.Thread):
@@ -37,7 +37,6 @@ class Producer(threading.Thread):
                         browser = self.dataopt.star_chr()
                         try:
                             html = self.dataopt.origin_page(url, browser)
-                            print("producer %s product %s, the rest of requests %d in queue." % (self.name, url, self.dataopt.detail_queue.scard("content")))
                             que.put((url, html, _json))
                         except Exception as e:
                             print(e)
@@ -63,7 +62,7 @@ class Consumer(threading.Thread):
             if not que.empty():
                 url, html, detail = que.get()
                 page_deal = PageDeal(detail, html, self.dataopt.re_queue)
-                print("consumer %s consume %s" % (self.name, url))
+                print("consumer %s consume %s, the rest of requests %d in queue." % (self.name, url, self.dataopt.detail_queue.scard("content")))
                 page_deal.data_page()
                 # 发出完成的信号，不发的话，join会永远阻塞，程序不会停止
                 que.task_done()
@@ -349,7 +348,7 @@ def main():
     # dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     # 启动生产者线程
-    for i in range(8):
+    for i in range(10):
         # 启动消费者线程
         p = Producer(dataopt)
         p.start()
@@ -358,7 +357,7 @@ def main():
         # 启动消费者线程
         c1 = Consumer(dataopt)
         c1.start()
-        time.sleep(10)
+        time.sleep(30)
     global que
     # 接收信号，主线程在这里等待队列被处理完毕后再做下一步
     que.join()
