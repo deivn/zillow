@@ -12,7 +12,7 @@ import random
 import threading
 import time
 from queue import Queue
-que = Queue(10)
+que = Queue(20)
 
 
 class Producer(threading.Thread):
@@ -309,23 +309,6 @@ class DataOpt(object):
         browser = webdriver.Chrome(executable_path=self.driver_url, chrome_options=chrome_options)
         return browser
 
-    """"
-    功能：如果出现验证机器人，则使用更换代理的方式
-    """
-    def star_proxy_chr(self):
-        chrome_options = webdriver.ChromeOptions()
-        print("当前IP是: %s" % self.ip)
-        proxy = "--proxy-server=http://" + self.ip
-        chrome_options.add_argument(proxy)
-        chrome_options.add_argument('--ignore-certificate-errors')
-        chrome_options.add_argument('--disable-gpu')
-        # prefs = {"profile.managed_default_content_settings.images": 2}
-        # chrome_options.add_experimental_option("prefs", prefs)
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        time.sleep(5)
-        browser = webdriver.Chrome(executable_path=self.driver_url, chrome_options=chrome_options)
-        return browser
-
     def origin_page(self, url, browser):
         # url = detail["detail_url"]
         browser.get(url)
@@ -348,16 +331,16 @@ def main():
     # dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     # 启动生产者线程
-    for i in range(10):
+    for i in range(20):
         # 启动消费者线程
         p = Producer(dataopt)
         p.start()
-        time.sleep(5)
-    for i in range(8):
+        time.sleep(8)
+    for i in range(15):
         # 启动消费者线程
         c1 = Consumer(dataopt)
         c1.start()
-        time.sleep(30)
+        time.sleep(15)
     global que
     # 接收信号，主线程在这里等待队列被处理完毕后再做下一步
     que.join()

@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-  
 import json
 
+
 class Data(object):
 
     def __init__(self, price, bedroom, bathroom, street, deal_type, img_url,
