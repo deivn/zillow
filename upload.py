@@ -2,9 +2,7 @@
 # -*- coding:utf-8 -*-
 import MySQLdb
 import requests
-import codecs
 import time
-import json
 from multiprocessing import Lock
 from urllib3 import encode_multipart_formdata
 
@@ -12,7 +10,6 @@ from urllib3 import encode_multipart_formdata
 class SnowFlakeUtil(object):
 
     def __init__(self, workerId, datacenterId):
-
         self.worker_id_bits = 5
         self.max_worker_id = -1 ^ (-1 << self.worker_id_bits)
         self.data_center_id_bits = 5
@@ -137,7 +134,6 @@ class ImageDeal(object):
 
 def main():
     conn = MySQLdb.connect(host='120.78.196.201', user='ebuyhouse', passwd='ebuyhouse', db='crawl', port=3306, use_unicode=True, charset='utf8')
-
     cur = conn.cursor()
     try:
         cur.execute("select id, house_img from t_house_detail_new0701")
