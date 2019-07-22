@@ -87,7 +87,8 @@ class ImageDeal(object):
                         ones.append(self.download(url, gen_num))
             else:
                 # 一张图片
-                one = self.download(zillow_img_url)
+                gen_num = SnowFlakeUtil(0, 0).next_id()
+                one = self.download(zillow_img_url, gen_num)
                 pcUrl = self.uploadReturnAmazonImg(*one)
                 if pcUrl:
                     img_urls.append(pcUrl)
@@ -136,7 +137,10 @@ def main():
     conn = MySQLdb.connect(host='120.78.196.201', user='ebuyhouse', passwd='ebuyhouse', db='crawl', port=3306, use_unicode=True, charset='utf8')
     cur = conn.cursor()
     try:
-        cur.execute("select id, house_img from t_house_detail_new0701")
+        # 详情表
+        cur.execute("select id, house_img from t_house_detail_new0718")
+        # 房源主表
+        # cur.execute("select id, img_url from t_houses_new0701")
         _imgs = cur.fetchall()
         if _imgs:
             imgDeal = ImageDeal()
@@ -150,7 +154,8 @@ def main():
                     id, img_urls = res
                     urls = ','.join(img_urls)
                     print("id: %d, imgurls: %s" % (id, urls))
-                    _count = cur.execute("update t_house_detail_new0701 set house_img = %s where id = %s", [urls, str(id)])
+                    _count = cur.execute("update t_house_detail_new0718 set house_img = %s where id = %s", [urls, str(id)])
+                    # _count = cur.execute("update t_houses_new0701 set img_url = %s where id = %s", [urls, str(id)])
                     conn.commit()
                     count += _count
             print("共计更新表图片记录%d条" % count)
