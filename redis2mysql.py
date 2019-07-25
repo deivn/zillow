@@ -91,12 +91,14 @@ class Redis2Mysql(object):
         # 字符串不包含谷歌图片并且长度大小为1和大余1的情况
         _imgs = imgs.split(",")
         if len(_imgs) > 1:
-            first = imgs[:imgs.find(',')].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com").replace(":443", "")
+            # first = imgs[:imgs.find(',')].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com").replace(":443", "")
+            first = imgs[:imgs.find(',')]
             less = ''
             if len(_imgs) == 2:
                 less = imgs.replace(":443", "")
             else:
-                less = imgs[imgs.find(',') + 1:].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com").replace(":443", "")
+                # less = imgs[imgs.find(',') + 1:].replace("https://photos.zillowstatic.com", "http://zimg.ebuyhouse.com").replace(":443", "")
+                less = imgs[imgs.find(',') + 1:]
             return (first, less)
         return ()
 
@@ -136,8 +138,9 @@ def main():
             living_sqft = _item['living_sqft'] if _item['living_sqft'] and _item['living_sqft'] != -1.0 and _item['living_sqft'] != '0' else 0
             city_id = redis2mysql.get_cid(_item['state'], _item['city'])
             street = _item['street']
+            price = _item['price']
             # 按图片，手机号,房源类型,占地面积, 城市过滤,地址(undisclosed-Address)过滤
-            if imgs and contact_phone and house_type_id and city_id and street.find("undisclosed") == -1:
+            if price != '0' and imgs and contact_phone and house_type_id and city_id and street.find("undisclosed") == -1:
                 if lot_sqft or living_sqft:
                     # 使用execute方法执行SQL INSERT语
                     item['house_id'] = redis2mysql.get_houseid(_item['street'])
@@ -174,7 +177,7 @@ def main():
                     item['house_img'] = less
                     item['house_desc'] = _item['comments']
                     try:
-                        count = cur.execute("INSERT ignore t_houses_new0711 (\
+                        count = cur.execute("INSERT ignore t_houses_new0718 (\
                                     house_id, user_id, state_id, city_id, house_type_id, price, hoa_fee, mls, apn, street, \
                                     zip, bedroom, bathroom, garage, lot_sqft, user_input_unit, living_sqft, latitude,longitude, \
                                     year_build, img_url, origin, garage_sqft, deal_type, rent_payment, check_status, shelf_status, basement_sqft, transaction_status, \
@@ -185,16 +188,16 @@ def main():
                                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                                     [item['house_id'], item['user_id'], item['state_id'], item['city_id'], item['house_type_id'], item['price'], item['hoa_fee'], item['mls'], item['apn'], item['street'],
                                      item['zip'], item['bedroom'], item['bathroom'], item['garage'], item['lot_sqft'], item['user_input_unit'], item['living_sqft'], item['latitude'], item['longitude'],
-                                    item['year_build'], item['img_url'], 20190711, 0, item['deal_type'], 1, 1, 1, 0, 1,
+                                    item['year_build'], item['img_url'], 20190718, 0, item['deal_type'], 1, 1, 1, 0, 1,
                                     item['deposit'], item['contact_name'], item['contact_phone'], item['contact_email'], 2, item['create_time'], "", 0, 1, "", 0, item['url']])
                         if count == 1:
-                            cur.execute("INSERT ignore t_house_detail_new0711 (house_id, house_img, house_video, house_desc, house_deed, house_amenities, deny_reason, view_count, house_amenities_value) VALUES (\
+                            cur.execute("INSERT ignore t_house_detail_new0718 (house_id, house_img, house_video, house_desc, house_deed, house_amenities, deny_reason, view_count, house_amenities_value) VALUES (\
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                                         [item['house_id'], item['house_img'], "", item['house_desc'], "", "", "", 0, ""])
                             print("inserted %s" % item['url'])
                     except Exception as e:
                         print(e)
-                        cur.execute("delete from t_houses_new0711 where house_id = %s", [item['house_id']])
+                        cur.execute("delete from t_houses_new0718 where house_id = %s", [item['house_id']])
                     finally:
                         # 提交sql事务
                         redis2mysql.mysqlcli.commit()
@@ -209,15 +212,15 @@ def main():
             try:
                 # 删除重复
                 rows = cur.execute("\
-                DELETE FROM t_houses_new0711 WHERE house_id IN (SELECT house_id FROM (SELECT house_id \
-                FROM t_houses_new0711 GROUP BY house_id HAVING COUNT(house_id) > 1 ) a ) AND id NOT IN (\
-                SELECT hid FROM (SELECT MIN(id) AS hid FROM t_houses_new0711 GROUP BY house_id HAVING \
+                DELETE FROM t_houses_new0718 WHERE house_id IN (SELECT house_id FROM (SELECT house_id \
+                FROM t_houses_new0718 GROUP BY house_id HAVING COUNT(house_id) > 1 ) a ) AND id NOT IN (\
+                SELECT hid FROM (SELECT MIN(id) AS hid FROM t_houses_new0718 GROUP BY house_id HAVING \
                 COUNT(house_id) > 1 ) b)", [])
                 print("t_houses_new去重%d条记录" % rows)
                 rows = cur.execute("\
-                                DELETE FROM t_house_detail_new0711 WHERE house_id IN (SELECT house_id FROM (SELECT house_id \
-                                FROM t_house_detail_new0711 GROUP BY house_id HAVING COUNT(house_id) > 1 ) a ) AND id NOT IN (\
-                                SELECT hid FROM (SELECT MIN(id) AS hid FROM t_house_detail_new0711 GROUP BY house_id HAVING \
+                                DELETE FROM t_house_detail_new0718 WHERE house_id IN (SELECT house_id FROM (SELECT house_id \
+                                FROM t_house_detail_new0718 GROUP BY house_id HAVING COUNT(house_id) > 1 ) a ) AND id NOT IN (\
+                                SELECT hid FROM (SELECT MIN(id) AS hid FROM t_house_detail_new0718 GROUP BY house_id HAVING \
                                 COUNT(house_id) > 1 ) b)", [])
                 print("t_house_detail_new去重%d条记录" % rows)
             except Exception as e:
@@ -234,9 +237,9 @@ def deal():
     conn = MySQLdb.connect(host='120.78.196.201', user='ebuyhouse', passwd='ebuyhouse', db='crawl', port=3306, use_unicode=True, charset='utf8')
     cur = conn.cursor()
     try:
-        # cur.execute("select id, img_url from t_houses_new0703 where img_url like '%:443%'")
-        # select id, house_img from t_house_detail_new0703 where house_img like '%:443%';
-        cur.execute("select id, house_img from t_house_detail_new0703 where house_img like '%:443%'")
+        # cur.execute("select id, img_url from t_houses_new0718 where img_url like '%:443%'")
+        # select id, house_img from t_house_detail_new0718 where house_img like '%:443%';
+        cur.execute("select id, house_img from t_house_detail_new0718 where house_img like '%:443%'")
 
         _imgs = cur.fetchall()
         if _imgs:
@@ -244,8 +247,8 @@ def deal():
             for id, house_img in _imgs:
                 _tmp = house_img.replace(":443", "")
                 try:
-                    # _count = cur.execute("update t_houses_new0703 set img_url = %s where id = %s", [_tmp, id])
-                    _count = cur.execute("update t_house_detail_new0703 set house_img = %s where id = %s", [_tmp, id])
+                    # _count = cur.execute("update t_houses_new0718 set img_url = %s where id = %s", [_tmp, id])
+                    _count = cur.execute("update t_house_detail_new0718 set house_img = %s where id = %s", [_tmp, id])
 
                     count += _count
                     conn.commit()

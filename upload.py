@@ -5,6 +5,7 @@ import requests
 import time
 from multiprocessing import Lock
 from urllib3 import encode_multipart_formdata
+from concurrent.futures import ThreadPoolExecutor
 
 
 class SnowFlakeUtil(object):
@@ -133,32 +134,48 @@ class ImageDeal(object):
         return new_name, binary_data
 
 
+def replace_img(*img_info):
+    global imgDeal
+    global cur
+    global count
+    id, img_url = img_info
+    orgin = img_url.replace('http://zimg.ebuyhouse.com', 'https://photos.zillowstatic.com')
+    args = (id, orgin)
+    res = imgDeal.img_opt(*args)
+    id, img_urls = res
+    urls = ','.join(img_urls)
+    print("id: %d, imgurls: %s" % (id, urls))
+    _count = cur.execute("update t_house_detail_new0718 set house_img = %s where id = %s", [urls, str(id)])
+    # _count = cur.execute("update t_houses_new0701 set img_url = %s where id = %s", [urls, str(id)])
+    conn.commit()
+    count += _count
+
+
+imgDeal = ImageDeal()
+conn = MySQLdb.connect(host='120.78.196.201', user='ebuyhouse', passwd='ebuyhouse', db='crawl', port=3306, use_unicode=True, charset='utf8')
+cur = conn.cursor()
+count = 0
+
+
 def main():
-    conn = MySQLdb.connect(host='120.78.196.201', user='ebuyhouse', passwd='ebuyhouse', db='crawl', port=3306, use_unicode=True, charset='utf8')
-    cur = conn.cursor()
     try:
+        global cur
+        global count
         # 详情表
         cur.execute("select id, house_img from t_house_detail_new0718")
         # 房源主表
         # cur.execute("select id, img_url from t_houses_new0701")
         _imgs = cur.fetchall()
         if _imgs:
-            imgDeal = ImageDeal()
-            count = 0
-            for id, img_url in _imgs:
-                pos = img_url.find('zimg.ebuyhouse.com')
-                if pos > 0:
-                    orgin = img_url.replace('http://zimg.ebuyhouse.com', 'https://photos.zillowstatic.com')
-                    args = (id, orgin)
-                    res = imgDeal.img_opt(*args)
-                    id, img_urls = res
-                    urls = ','.join(img_urls)
-                    print("id: %d, imgurls: %s" % (id, urls))
-                    _count = cur.execute("update t_house_detail_new0718 set house_img = %s where id = %s", [urls, str(id)])
-                    # _count = cur.execute("update t_houses_new0701 set img_url = %s where id = %s", [urls, str(id)])
-                    conn.commit()
-                    count += _count
-            print("共计更新表图片记录%d条" % count)
+            with ThreadPoolExecutor(max_workers=5) as t:  # 创建一个最大容纳数量为5的线程池
+                for img_info in _imgs:
+                    id, img_url = img_info
+                    pos = img_url.find('zjcebuyhouse.s3.amazonaws.com')
+                    if pos == -1:
+                        # 通过submit提交执行的函数到线程池中
+                        t.submit(replace_img, *img_info)
+                        time.sleep(10)
+                print("共更新表图片记录%d条" % count)
     except Exception as e:
         print(e.args(0))
     finally:
