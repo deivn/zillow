@@ -204,6 +204,8 @@ class PageDeal(object):
 
     def get_contactname(self, source):
         agent_name = source.xpath('//ul[@class="ds-listing-agent-info"]/li[1]/span/text()')
+        if not agent_name:
+            agent_name = source.xpath('//ul[@class="cf-listing-agent-info"]/li/span/text()')
         return agent_name[0] if agent_name else ""
 
     def get_contactphone(self, source):
