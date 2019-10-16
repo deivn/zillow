@@ -12,7 +12,7 @@ import random
 import threading
 import time
 from queue import Queue
-que = Queue(20)
+que = Queue(10)
 
 
 class Producer(threading.Thread):
@@ -38,12 +38,11 @@ class Producer(threading.Thread):
                         try:
                             html = self.dataopt.origin_page(url, browser)
                             que.put((url, html, _json))
-                        except Exception as e:
-                            print(e)
-                            self.dataopt.detail_queue.sadd("content", result)
-                            time.sleep(5)
-                        finally:
                             browser.quit()
+                        except Exception as e:
+                            browser.quit()
+                            self.dataopt.detail_queue.sadd("content", result)
+                            time.sleep(300)
                 else:
                     raise Exception("request empty")
 
@@ -316,7 +315,6 @@ class DataOpt(object):
         browser.get(url)
         html = browser.page_source
         if 'robots' in html:
-            time.sleep(80)
             raise Exception("robots")
         return html
 
@@ -333,16 +331,14 @@ def main():
     # dataopt = DataOpt('C:/devtools/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     dataopt = DataOpt('E:/工作日常文档/爬虫/crawl_driver/chrome_driver.txt', 'rb', '47.106.140.94', '6486', 2)
     # 启动生产者线程
-    for i in range(20):
+    for i in range(10):
         # 启动消费者线程
         p = Producer(dataopt)
         p.start()
-        time.sleep(8)
-    for i in range(15):
+    for i in range(10):
         # 启动消费者线程
         c1 = Consumer(dataopt)
         c1.start()
-        time.sleep(15)
     global que
     # 接收信号，主线程在这里等待队列被处理完毕后再做下一步
     que.join()
